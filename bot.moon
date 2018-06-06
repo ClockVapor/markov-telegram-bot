@@ -12,10 +12,10 @@ main = ->
   print "bot started"
 
   api.on_message = (message) ->
-    if message.text and message.from.username
+    if message.text
       match = message.text\match "^/msg%s+(%w+)"
       if match and message.date and message.date >= start_time
-        log "(#{message.chat.id}, #{message.from.username}) generating message for #{match}"
+        log "(#{message.chat.id}, #{get_from_display_name message}) generating message for #{match}"
         text = generate message.chat.id, match
         if text == nil then text = "<failed to generate message for #{match}>"
         api.send_message message.chat.id, text
@@ -40,12 +40,12 @@ load_config = ->
 -- Analyzes the given Telegram message and updates 
 -- the applicable Markov chain file for the sending user.
 analyze = (message) ->
-  data = read_markov message.chat.id, message.from.username
+  data = read_markov message.chat.id, message.from.id
   if data == nil then data = { words: {} }
   words = get_words message.text
-  log "(#{message.chat.id}, #{message.from.username}): #{message.text}"
+  log "(#{message.chat.id}, #{get_from_display_name message}): #{message.text}"
   add_to_markov data.words, words
-  write_markov message.chat.id, message.from.username, data
+  write_markov message.chat.id, message.from.id, data
 
 -- Used for start and end of messages.
 -- i.e. data.words[empty_word]    = map of words that start messages,
@@ -53,8 +53,8 @@ analyze = (message) ->
 empty_word = ""
 
 -- Generates a message for the given user in the given chat.
-generate = (chat_id, username) ->
-  data = read_markov chat_id, username
+generate = (chat_id, user_id) ->
+  data = read_markov chat_id, user_id
   if data and data.words
     words = {}
     last = data.words[empty_word]
@@ -69,28 +69,26 @@ generate = (chat_id, username) ->
 
 -- Reads the Markov chain file for the given user in the given chat,
 -- or returns nil if it isn't found.
-read_markov = (chat_id, username) ->
-  username = username\lower!
-  path = get_markov_path chat_id, username
+read_markov = (chat_id, user_id) ->
+  path = get_markov_path chat_id, user_id
   data = nil
   pcall -> data = json.decode read_file path
   data
 
 -- Writes to the Markov chain file for the given user in the given chat.
-write_markov = (chat_id, username, data) ->
-  username = username\lower!
-  path = get_markov_path chat_id, username
+write_markov = (chat_id, user_id, data) ->
+  path = get_markov_path chat_id, user_id
   text = json.encode data
   write_file path, text
   
 -- Creates the directories necessary for the Markov chain file for the given user
 -- in the given chat, and then returns the path to the file.
-get_markov_path = (chat_id, username) ->
+get_markov_path = (chat_id, user_id) ->
   data_dir = "data"
   lfs.mkdir data_dir
   chat_dir = "#{data_dir}/#{chat_id}"
   lfs.mkdir chat_dir
-  "#{chat_dir}/#{username}.json"
+  "#{chat_dir}/#{user_id}.json"
 
 add_to_markov = (map, words) ->
   len = #words
@@ -132,5 +130,15 @@ get_random_word = (follow_map) ->
     current += count
     if i < current
       return word
+
+get_from_display_name = (message) ->
+  if message.from.username
+    message.from.username
+  elseif message.from.first_name and message.from.last_name
+    "#{message.from.first_name} #{message.from.last_name}"
+  elseif message.from.first_name
+    message.from.first_name
+  else
+    message.from.id
 
 main!
