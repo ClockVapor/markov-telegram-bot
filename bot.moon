@@ -1,4 +1,5 @@
 yaml = require "lyaml"
+json = require "lunajson"
 lfs = require "lfs"
 inspect = require "inspect"
 { :join, :read_file, :write_file } = require "bot.util"
@@ -39,14 +40,17 @@ analyze = (message) ->
     add_to_markov data.words, words
     write_markov message.chat.id, message.from.username, data
 
+-- used for start and end of messages
+empty_word = ""
+
 generate = (chat_id, username) ->
   data = read_markov chat_id, username
   if data.words
     words = {}
-    last = data.words[0]
-    while last
+    last = data.words[empty_word]
+    while last != nil
       word = get_random_word last
-      if word and word != 0
+      if word != nil and word != empty_word
         table.insert words, word
         last = data.words[word]
       else
@@ -57,7 +61,7 @@ read_markov = (chat_id, username) ->
   username = username\lower!
   path = get_markov_path chat_id, username
   data = nil
-  pcall -> data = yaml.load read_file path
+  pcall -> data = json.decode read_file path
   if data == nil
     data = {}
   data
@@ -65,7 +69,7 @@ read_markov = (chat_id, username) ->
 write_markov = (chat_id, username, data) ->
   username = username\lower!
   path = get_markov_path chat_id, username
-  text = yaml.dump { data }
+  text = json.encode data
   write_file path, text
   
 get_markov_path = (chat_id, username) ->
@@ -73,17 +77,17 @@ get_markov_path = (chat_id, username) ->
   lfs.mkdir data_dir
   chat_dir = data_dir .. "/" .. tostring chat_id
   lfs.mkdir chat_dir
-  chat_dir .. "/" .. username .. ".yml"
+  chat_dir .. "/" .. username .. ".json"
 
 add_to_markov = (map, words) ->
   len = #words
   if len > 0
-    if map[0] == nil then map[0] = {}
+    if map[empty_word] == nil then map[empty_word] = {}
     first = words[1]
-    if map[0][first] == nil
-      map[0][first] = 1
+    if map[empty_word][first] == nil
+      map[empty_word][first] = 1
     else
-      map[0][first] += 1
+      map[empty_word][first] += 1
 
     for i = 1, len - 1
       w = words[i]
@@ -96,10 +100,10 @@ add_to_markov = (map, words) ->
 
     last = words[len]
     if map[last] == nil then map[last] = {}
-    if map[last][0] == nil
-      map[last][0] = 1
+    if map[last][empty_word] == nil
+      map[last][empty_word] = 1
     else
-      map[last][0] += 1
+      map[last][empty_word] += 1
 
 get_words = (s) ->
   [w for w in s\gmatch "%S+"]
