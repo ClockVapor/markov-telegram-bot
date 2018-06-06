@@ -90,7 +90,7 @@ generate = (chat_id, user_id) ->
 -- or returns nil if it isn't found.
 read_markov = (chat_id, user_id) ->
   path = get_markov_path chat_id, user_id
-  data = nil
+  local data
   pcall -> data = json.decode read_file path
   data
 
@@ -105,6 +105,7 @@ write_markov = (chat_id, user_id, data) ->
 get_markov_path = (chat_id, user_id) ->
   "#{get_chat_path chat_id}/#{user_id}.json"
 
+-- Adds a list of words to the given Markov chain.
 add_words_to_markov = (map, words) ->
   len = #words
   if len > 0
@@ -113,6 +114,7 @@ add_words_to_markov = (map, words) ->
       add_pair_to_markov map, words[i], words[i + 1]
     add_pair_to_markov map, words[len], empty_word
 
+-- Adds one pair of (word, next_word) to the given Markov chain.
 add_pair_to_markov = (map, word, next_word) ->
   if map[word] == nil then map[word] = {}
   if map[word][next_word] == nil
@@ -120,30 +122,40 @@ add_pair_to_markov = (map, word, next_word) ->
   else
     map[word][next_word] += 1
 
+-- Creates and gets the directory for a chat.
 get_chat_path = (chat_id) ->
   path = "#{get_data_path!}/#{chat_id}"
   lfs.mkdir path
   path
 
+-- Stores a username to user id mapping in the usernames file.
 store_username = (username, user_id) ->
-  map = nil
-  pcall -> map = read_usernames!
+  map = read_usernames!
   if map == nil then map = {}
   map[username\lower!] = user_id
   write_usernames map
 
+-- Gets the stored user id associated with a username.
 get_user_id = (username) ->
-  read_usernames![username\lower!]
+  map = read_usernames!
+  if map then map[username\lower!]
 
+-- Reads the stored map of usernames to user ids, or returns nil if
+-- it cannot be read.
 read_usernames = ->
-  json.decode read_file get_usernames_path!
+  local map
+  pcall -> map = json.decode read_file get_usernames_path!
+  map
 
+-- Writes a map of usernames to user ids to the usernames file.
 write_usernames = (map) ->
   write_file get_usernames_path!, json.encode map
 
+-- Creates directories for the usernames file and then returns the path to the file.
 get_usernames_path = ->
   "#{get_data_path!}/usernames.json"
   
+-- Creates and gets the data directory.
 get_data_path = ->
   path = "data"
   lfs.mkdir path
@@ -164,6 +176,7 @@ get_random_word = (follow_map) ->
     if i < current
       return word
 
+-- Gets a display string for the sender of a message.
 get_from_display_name = (message) ->
   if message.from.username
     message.from.username
