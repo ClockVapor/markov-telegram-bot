@@ -17,7 +17,7 @@ main = ->
       if match and message.date and message.date >= start_time
         log "(" .. message.chat.id .. ", " .. match .. "): generating message"
         text = generate message.chat.id, match
-        if text == nil then text = "<failed to generate message for " .. username .. ">"
+        if text == nil then text = "<failed to generate message for " .. match .. ">"
         api.send_message message.chat.id, text
       else
         analyze message
