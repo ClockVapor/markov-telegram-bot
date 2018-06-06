@@ -35,7 +35,7 @@ main = ->
                 "<failed to generate message for #{e2_text}>"
             else
               "<expected a user mention>"
-            api.send_message message.chat.id, response
+            api.send_message message.chat.id, response, nil, nil, nil, message.message_id
 
       if should_analyze then analyze message
 
