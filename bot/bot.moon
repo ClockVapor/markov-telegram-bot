@@ -1,6 +1,7 @@
 yaml = require "lyaml"
 lfs = require "lfs"
 inspect = require "inspect"
+{ :join, :read_file, :write_file } = require "bot.util"
 local *
 
 main = ->
@@ -33,8 +34,8 @@ analyze = (message) ->
   if message.from.username
     data = read_markov message.chat.id, message.from.username
     words = get_words message.text
-    print inspect words
     if data.words == nil then data.words = {}
+    print inspect words
     add_to_markov data.words, words
     write_markov message.chat.id, message.from.username, data
 
@@ -100,22 +101,8 @@ add_to_markov = (map, words) ->
     else
       map[last][0] += 1
 
-read_file = (path) ->
-  file = io.open path, "r"
-  if file == nil then error "couldn't read file: " .. path
-  text = file\read "*a"
-  io.close file
-  text
-
-write_file = (path, text) ->
-  file = io.open path, "w"
-  if file == nil then error "couldn't write file: " .. path
-  text = file\write text
-  io.close file
-  text
-
 get_words = (s) ->
-  return for w in s\gmatch "%S+" do w
+  [w for w in s\gmatch "%S+"]
 
 get_random_word = (map) ->
   total_count = 0
@@ -126,14 +113,5 @@ get_random_word = (map) ->
     current += count
     if i < current
       return word
-
-join = (t, s) ->
-  result = ""
-  len = #t
-  if len > 0
-    for i = 1, len - 1
-      result ..= tostring t[i] .. s
-    result ..= tostring t[len]
-  result
 
 main!
