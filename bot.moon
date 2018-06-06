@@ -8,45 +8,54 @@ local *
 main = ->
   start_time = os.time!
   config = load_config!
-  api = require("telegram-bot-lua.core").configure(config.token)
+  api = require("telegram-bot-lua.core").configure config.token
   print "bot started"
 
   api.on_message = (message) ->
-    if message.text
+    if message.text and message.from.username
       match = message.text\match "^/msg%s+(%w+)"
       if match and message.date and message.date >= start_time
-        log "(" .. message.chat.id .. ", " .. match .. "): generating message"
+        log "(#{message.chat.id}, #{message.from.username}) generating message for #{match}"
         text = generate message.chat.id, match
-        if text == nil then text = "<failed to generate message for " .. match .. ">"
+        if text == nil then text = "<failed to generate message for #{match}>"
         api.send_message message.chat.id, text
       else
         analyze message
 
   api.run!
 
+-- Loads config.yml as a table and verifies its contents.
 load_config = ->
   config_file_path = "config.yml"
-  config = yaml.load read_file config_file_path
-  if config.token == nil
-    print "error: missing \"token\" entry in " .. config_file_path
+  config = nil
+  pcall -> config = yaml.load read_file config_file_path
+  if config == nil
+    print "error: failed to load #{config_file_path}"
+    os.exit(1)
+  elseif config.token == nil
+    print "error: missing \"token\" entry in #{config_file_path}"
     os.exit(1)
   config
 
+-- Analyzes the given Telegram message and updates 
+-- the applicable Markov chain file for the sending user.
 analyze = (message) ->
-  if message.from.username
-    data = read_markov message.chat.id, message.from.username
-    words = get_words message.text
-    if data.words == nil then data.words = {}
-    log "(" .. message.chat.id .. ", " .. message.from.username .. "): " .. inspect words
-    add_to_markov data.words, words
-    write_markov message.chat.id, message.from.username, data
+  data = read_markov message.chat.id, message.from.username
+  if data == nil then data = { words: {} }
+  words = get_words message.text
+  log "(#{message.chat.id}, #{message.from.username}): #{message.text}"
+  add_to_markov data.words, words
+  write_markov message.chat.id, message.from.username, data
 
--- used for start and end of messages
+-- Used for start and end of messages.
+-- i.e. data.words[empty_word]    = map of words that start messages,
+--  and data.words[x][empty_word] = how many times a word ends a message
 empty_word = ""
 
+-- Generates a message for the given user in the given chat.
 generate = (chat_id, username) ->
   data = read_markov chat_id, username
-  if data.words
+  if data and data.words
     words = {}
     last = data.words[empty_word]
     while last
@@ -58,27 +67,30 @@ generate = (chat_id, username) ->
         last = nil
     join words, " "
 
+-- Reads the Markov chain file for the given user in the given chat,
+-- or returns nil if it isn't found.
 read_markov = (chat_id, username) ->
   username = username\lower!
   path = get_markov_path chat_id, username
   data = nil
   pcall -> data = json.decode read_file path
-  if data == nil
-    data = {}
   data
 
+-- Writes to the Markov chain file for the given user in the given chat.
 write_markov = (chat_id, username, data) ->
   username = username\lower!
   path = get_markov_path chat_id, username
   text = json.encode data
   write_file path, text
   
+-- Creates the directories necessary for the Markov chain file for the given user
+-- in the given chat, and then returns the path to the file.
 get_markov_path = (chat_id, username) ->
   data_dir = "data"
   lfs.mkdir data_dir
-  chat_dir = data_dir .. "/" .. tostring chat_id
+  chat_dir = "#{data_dir}/#{chat_id}"
   lfs.mkdir chat_dir
-  chat_dir .. "/" .. username .. ".json"
+  "#{chat_dir}/#{username}.json"
 
 add_to_markov = (map, words) ->
   len = #words
@@ -106,15 +118,17 @@ add_to_markov = (map, words) ->
     else
       map[last][empty_word] += 1
 
+-- Splits the given string into a list of words.
 get_words = (s) ->
   [w for w in s\gmatch "%S+"]
 
-get_random_word = (map) ->
+-- Gets a weighted random word from the given map (which maps a word to how many times it occurred).
+get_random_word = (follow_map) ->
   total_count = 0
-  for _, count in pairs map do total_count += count
-  i = math.random(total_count) - 1
+  for _, count in pairs follow_map do total_count += count
+  i = math.random(total_count) - 1 -- [0, total_count-1]
   current = 0
-  for word, count in pairs map
+  for word, count in pairs follow_map
     current += count
     if i < current
       return word
