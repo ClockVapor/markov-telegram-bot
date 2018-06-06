@@ -48,9 +48,9 @@ generate = (chat_id, username) ->
   if data.words
     words = {}
     last = data.words[empty_word]
-    while last != nil
+    while last
       word = get_random_word last
-      if word != nil and word != empty_word
+      if word and word != empty_word
         table.insert words, word
         last = data.words[word]
       else
