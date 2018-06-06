@@ -29,11 +29,12 @@ main = ->
                 user_id = switch e2.type
                   when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
                   when "text_mention" then e2.user.id
+                local m
                 if user_id
                   log "(#{message.chat.id}, #{get_from_display_name message}) generating message for #{e2_text}"
-                  generate message.chat.id, user_id
-                else
-                  "<failed to generate message for #{e2_text}>"
+                  m = generate message.chat.id, user_id
+                if m == nil then m = "<no data available for #{e2_text}>"
+                m
               else
                 "<expected a user mention>"
               api.send_message message.chat.id, response, nil, nil, nil, message.message_id
@@ -62,7 +63,7 @@ analyze = (message) ->
   if data == nil then data = { words: {} }
   words = get_words message.text
   log "(#{message.chat.id}, #{get_from_display_name message}): #{message.text}"
-  add_to_markov data.words, words
+  add_words_to_markov data.words, words
   write_markov message.chat.id, message.from.id, data
 
 -- Used for start and end of messages.
@@ -104,31 +105,20 @@ write_markov = (chat_id, user_id, data) ->
 get_markov_path = (chat_id, user_id) ->
   "#{get_chat_path chat_id}/#{user_id}.json"
 
-add_to_markov = (map, words) ->
+add_words_to_markov = (map, words) ->
   len = #words
   if len > 0
-    if map[empty_word] == nil then map[empty_word] = {}
-    first = words[1]
-    if map[empty_word][first] == nil
-      map[empty_word][first] = 1
-    else
-      map[empty_word][first] += 1
-
+    add_pair_to_markov map, empty_word, words[1]
     for i = 1, len - 1
-      w = words[i]
-      nw = words[i + 1]
-      if map[w] == nil then map[w] = {}
-      if map[w][nw] == nil
-        map[w][nw] = 1
-      else
-        map[w][nw] += 1
+      add_pair_to_markov map, words[i], words[i + 1]
+    add_pair_to_markov map, words[len], empty_word
 
-    last = words[len]
-    if map[last] == nil then map[last] = {}
-    if map[last][empty_word] == nil
-      map[last][empty_word] = 1
-    else
-      map[last][empty_word] += 1
+add_pair_to_markov = (map, word, next_word) ->
+  if map[word] == nil then map[word] = {}
+  if map[word][next_word] == nil
+    map[word][next_word] = 1
+  else
+    map[word][next_word] += 1
 
 get_chat_path = (chat_id) ->
   path = "#{get_data_path!}/#{chat_id}"
