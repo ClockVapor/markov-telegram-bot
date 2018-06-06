@@ -22,20 +22,21 @@ main = ->
           cmd = message.text\sub e1.offset + 1, e1.offset + e1.length
           if cmd == "/msg" or cmd == "/msg@person_simulator_bot"
             should_analyze = false
-            response = if #message.entities > 1
-              e2 = message.entities[2]
-              e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
-              user_id = switch e2.type
-                when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
-                when "text_mention" then e2.user.id
-              if user_id
-                log "(#{message.chat.id}, #{get_from_display_name message}) generating message for #{e2_text}"
-                generate message.chat.id, user_id
+            if message.date and message.date >= start_time
+              response = if #message.entities > 1
+                e2 = message.entities[2]
+                e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
+                user_id = switch e2.type
+                  when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
+                  when "text_mention" then e2.user.id
+                if user_id
+                  log "(#{message.chat.id}, #{get_from_display_name message}) generating message for #{e2_text}"
+                  generate message.chat.id, user_id
+                else
+                  "<failed to generate message for #{e2_text}>"
               else
-                "<failed to generate message for #{e2_text}>"
-            else
-              "<expected a user mention>"
-            api.send_message message.chat.id, response, nil, nil, nil, message.message_id
+                "<expected a user mention>"
+              api.send_message message.chat.id, response, nil, nil, nil, message.message_id
 
       if should_analyze then analyze message
 
@@ -101,9 +102,7 @@ write_markov = (chat_id, user_id, data) ->
 -- Creates the directories necessary for the Markov chain file for the given user
 -- in the given chat, and then returns the path to the file.
 get_markov_path = (chat_id, user_id) ->
-  chat_dir = "#{get_data_path!}/#{chat_id}"
-  lfs.mkdir chat_dir
-  "#{chat_dir}/#{user_id}.json"
+  "#{get_chat_path chat_id}/#{user_id}.json"
 
 add_to_markov = (map, words) ->
   len = #words
@@ -130,6 +129,11 @@ add_to_markov = (map, words) ->
       map[last][empty_word] = 1
     else
       map[last][empty_word] += 1
+
+get_chat_path = (chat_id) ->
+  path = "#{get_data_path!}/#{chat_id}"
+  lfs.mkdir path
+  path
 
 store_username = (username, user_id) ->
   map = nil
