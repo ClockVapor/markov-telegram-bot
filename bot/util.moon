@@ -1,3 +1,6 @@
+log = (msg) ->
+  print os.date("%x %X", os.time!) .. ": " .. msg
+
 join = (t, s) ->
   result = ""
   len = #t
@@ -20,4 +23,4 @@ write_file = (path, text) ->
   text = file\write text
   io.close file
 
-{ :join, :read_file, :write_file }
+{ :log, :join, :read_file, :write_file }

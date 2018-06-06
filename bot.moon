@@ -2,7 +2,7 @@ yaml = require "lyaml"
 json = require "lunajson"
 lfs = require "lfs"
 inspect = require "inspect"
-{ :join, :read_file, :write_file } = require "bot.util"
+{ :log, :join, :read_file, :write_file } = require "bot.util"
 local *
 
 main = ->
@@ -15,6 +15,7 @@ main = ->
     if message.text
       match = message.text\match "^/msg%s+(%w+)"
       if match and message.date and message.date >= start_time
+        log "(" .. message.chat.id .. ", " .. match .. "): generating message"
         text = generate message.chat.id, match
         if text == nil then text = "<failed to generate message for " .. username .. ">"
         api.send_message message.chat.id, text
@@ -36,7 +37,7 @@ analyze = (message) ->
     data = read_markov message.chat.id, message.from.username
     words = get_words message.text
     if data.words == nil then data.words = {}
-    print inspect words
+    log "(" .. message.chat.id .. ", " .. message.from.username .. "): " .. inspect words
     add_to_markov data.words, words
     write_markov message.chat.id, message.from.username, data
 
