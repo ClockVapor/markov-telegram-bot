@@ -11,6 +11,10 @@ join = (t, s) ->
     result ..= tostring t[len]
   result
 
+-- Removes leading and trailing whitespace from a string.
+trim = (s) ->
+  s\gsub("^%s+", "")\gsub("%s+$", "")
+
 -- Reads all text from a file.
 read_file = (path) ->
   file = io.open path, "r"
@@ -26,4 +30,4 @@ write_file = (path, text) ->
   text = file\write text
   io.close file
 
-{ :log, :join, :read_file, :write_file }
+{ :log, :join, :trim, :read_file, :write_file }
