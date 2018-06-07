@@ -1,16 +1,16 @@
 yaml = require "lyaml"
 json = require "lunajson"
 lfs = require "lfs"
-inspect = require "inspect"
 { :log, :join, :read_file, :write_file } = require "bot.util"
 local *
 
 main = ->
-  start_time = os.time!
-  config = load_config!
-  api = require("telegram-bot-lua.core").configure config.token
+  api = create_api load_config!, os.time!
   log "Bot started"
+  api.run!
 
+create_api = (config, start_time) ->
+  api = require("telegram-bot-lua.core").configure config.token
   api.on_message = (message) ->
     if message.from.username and message.from.id
       store_username message.from.username, message.from.id
@@ -31,17 +31,16 @@ main = ->
                   when "text_mention" then e2.user.id
                 local m
                 if user_id
-                  log "(#{message.chat.id}, #{get_from_display_name message}) generating message for #{e2_text}"
+                  log "(#{message.chat.id}, #{get_sender_display_name message}) generating message for #{e2_text}"
                   m = generate message.chat.id, user_id
-                if m == nil then m = "<no data available for #{e2_text}>"
+                m or= "<no data available for #{e2_text}>"
                 m
               else
                 "<expected a user mention>"
               api.send_message message.chat.id, response, nil, nil, nil, message.message_id
 
       if should_analyze then analyze message
-
-  api.run!
+  api
 
 -- Loads config.yml as a table and verifies its contents.
 load_config = ->
@@ -61,7 +60,7 @@ load_config = ->
 analyze = (message) ->
   data = read_markov(message.chat.id, message.from.id) or { words: {} }
   words = get_words message.text
-  log "(#{message.chat.id}, #{get_from_display_name message}): #{message.text}"
+  log "(#{message.chat.id}, #{get_sender_display_name message}): #{message.text}"
   add_words_to_markov data.words, words
   write_markov message.chat.id, message.from.id, data
 
@@ -110,7 +109,7 @@ add_words_to_markov = (map, words) ->
 
 -- Adds one pair of (word, next_word) to the given Markov chain.
 add_pair_to_markov = (map, word, next_word) ->
-  if map[word] == nil then map[word] = {}
+  map[word] or= {}
   if map[word][next_word] == nil
     map[word][next_word] = 1
   else
@@ -175,7 +174,7 @@ get_random_word = (follow_map) ->
       return word
 
 -- Gets a display string for the sender of a message.
-get_from_display_name = (message) ->
+get_sender_display_name = (message) ->
   if message.from.username
     message.from.username
   elseif message.from.first_name and message.from.last_name
