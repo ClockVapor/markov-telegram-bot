@@ -21,7 +21,23 @@ create_api = (config, start_time) ->
     if message.text
       should_analyze = true
 
-      if message.entities and #message.entities > 0
+      if pending_self_deletes[message.from.id]
+        should_analyze = false
+        pending_self_deletes[message.from.id] = nil
+        local reply_text
+        if trim(message.text) == yes
+          reply_text = if delete_markov message.chat.id, message.from.id
+            log "#{get_sender_log_tag message} successfully deleted their data"
+            "Okay. I deleted your data in this group."
+          else
+            log "#{get_sender_log_tag message} failed to delete their data"
+            "Hmm... I tried to delete your data, but it failed for some reason."
+        else
+          log "#{get_sender_log_tag message} cancelled their data deletion request"
+          reply_text = "Okay. I won't delete your data then."
+        api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
+
+      elseif message.entities and #message.entities > 0
         e1 = message.entities[1]
         e1_text = message.text\sub e1.offset + 1, e1.offset + e1.length
 
@@ -49,30 +65,10 @@ create_api = (config, start_time) ->
 
               when "/deletemydata", "/deletemydata@#{config.bot_name}"
                 if message.date and message.date >= start_time
-                  reply_text = "Are you sure you want to delete your Markov chain data in this group? " ..
-                    "Mention me with your answer."
+                  reply_text = "Are you sure you want to delete your Markov chain data in this group?"
                   m = api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
                   pending_self_deletes[message.from.id] = true
                   log "#{get_sender_log_tag message} wants to delete their data"
-
-          when "mention"
-            if e1_text == "@#{config.bot_name}"
-              should_analyze = false
-              body = (trim message.text\sub e1.offset + 1 + e1.length)\lower!
-              if pending_self_deletes[message.from.id]
-                pending_self_deletes[message.from.id] = nil
-                local reply_text
-                if body == yes
-                  reply_text = if delete_markov message.chat.id, message.from.id
-                    log "#{get_sender_log_tag message} successfully deleted their data"
-                    "Okay. I deleted your data in this group."
-                  else
-                    log "#{get_sender_log_tag message} failed to delete their data"
-                    "Hmm... I tried to delete your data, but it failed for some reason."
-                else
-                  log "#{get_sender_log_tag message} cancelled their data deletion request"
-                  reply_text = "Okay. I won't delete your data then."
-                api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
 
       if should_analyze then analyze message
   api
