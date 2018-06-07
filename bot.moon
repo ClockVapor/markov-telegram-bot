@@ -9,7 +9,7 @@ main = ->
   start_time = os.time!
   config = load_config!
   api = require("telegram-bot-lua.core").configure config.token
-  print "bot started"
+  log "Bot started"
 
   api.on_message = (message) ->
     if message.from.username and message.from.id
@@ -59,8 +59,7 @@ load_config = ->
 -- Analyzes the given Telegram message and updates 
 -- the applicable Markov chain file for the sending user.
 analyze = (message) ->
-  data = read_markov message.chat.id, message.from.id
-  if data == nil then data = { words: {} }
+  data = read_markov(message.chat.id, message.from.id) or { words: {} }
   words = get_words message.text
   log "(#{message.chat.id}, #{get_from_display_name message}): #{message.text}"
   add_words_to_markov data.words, words
@@ -99,11 +98,6 @@ write_markov = (chat_id, user_id, data) ->
   path = get_markov_path chat_id, user_id
   text = json.encode data
   write_file path, text
-  
--- Creates the directories necessary for the Markov chain file for the given user
--- in the given chat, and then returns the path to the file.
-get_markov_path = (chat_id, user_id) ->
-  "#{get_chat_path chat_id}/#{user_id}.json"
 
 -- Adds a list of words to the given Markov chain.
 add_words_to_markov = (map, words) ->
@@ -122,16 +116,9 @@ add_pair_to_markov = (map, word, next_word) ->
   else
     map[word][next_word] += 1
 
--- Creates and gets the directory for a chat.
-get_chat_path = (chat_id) ->
-  path = "#{get_data_path!}/#{chat_id}"
-  lfs.mkdir path
-  path
-
 -- Stores a username to user id mapping in the usernames file.
 store_username = (username, user_id) ->
-  map = read_usernames!
-  if map == nil then map = {}
+  map = read_usernames! or {}
   map[username\lower!] = user_id
   write_usernames map
 
@@ -150,16 +137,27 @@ read_usernames = ->
 -- Writes a map of usernames to user ids to the usernames file.
 write_usernames = (map) ->
   write_file get_usernames_path!, json.encode map
-
--- Creates directories for the usernames file and then returns the path to the file.
-get_usernames_path = ->
-  "#{get_data_path!}/usernames.json"
   
--- Creates and gets the data directory.
+-- Creates the data directory and returns its path.
 get_data_path = ->
   path = "data"
   lfs.mkdir path
   path
+
+-- Creates the directory for a chat and returns its path.
+get_chat_path = (chat_id) ->
+  path = "#{get_data_path!}/#{chat_id}"
+  lfs.mkdir path
+  path
+
+-- Creates the directory for the Markov chain file for the given user
+-- in the given chat, and then returns the path to the file.
+get_markov_path = (chat_id, user_id) ->
+  "#{get_chat_path chat_id}/#{user_id}.json"
+
+-- Creates the directory for the usernames file and then returns the path to the file.
+get_usernames_path = ->
+  "#{get_data_path!}/usernames.json"
 
 -- Splits the given string into a list of words.
 get_words = (s) ->
@@ -169,7 +167,7 @@ get_words = (s) ->
 get_random_word = (follow_map) ->
   total_count = 0
   for _, count in pairs follow_map do total_count += count
-  i = math.random(total_count) - 1 -- [0, total_count-1]
+  i = math.random(total_count) - 1 -- [0, total_count)
   current = 0
   for word, count in pairs follow_map
     current += count
