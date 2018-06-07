@@ -1,43 +1,78 @@
 yaml = require "lyaml"
 json = require "lunajson"
 lfs = require "lfs"
-{ :log, :join, :read_file, :write_file } = require "bot.util"
+{ :log, :join, :trim, :read_file, :write_file } = require "bot.util"
 local *
 
 main = ->
   api = create_api load_config!, os.time!
-  log "Bot started"
-  api.run!
+  log "bot started"
+  api.run 100, 5, 0, { "message" }
 
 create_api = (config, start_time) ->
+  pending_self_deletes = {}
+  yes = "yes"
+
   api = require("telegram-bot-lua.core").configure config.token
   api.on_message = (message) ->
     if message.from.username and message.from.id
       store_username message.from.username, message.from.id
+
     if message.text
       should_analyze = true
+
       if message.entities and #message.entities > 0
         e1 = message.entities[1]
-        if e1.type == "bot_command" and e1.offset == 0
-          cmd = message.text\sub e1.offset + 1, e1.offset + e1.length
-          if cmd == "/msg" or cmd == "/msg@person_simulator_bot"
+        e1_text = message.text\sub e1.offset + 1, e1.offset + e1.length
+
+        switch e1.type
+          when "bot_command"
             should_analyze = false
-            if message.date and message.date >= start_time
-              response = if #message.entities > 1
-                e2 = message.entities[2]
-                e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
-                user_id = switch e2.type
-                  when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
-                  when "text_mention" then e2.user.id
-                local m
-                if user_id
-                  log "(#{message.chat.id}, #{get_sender_display_name message}) generating message for #{e2_text}"
-                  m = generate message.chat.id, user_id
-                m or= "<no data available for #{e2_text}>"
-                m
-              else
-                "<expected a user mention>"
-              api.send_message message.chat.id, response, nil, nil, nil, message.message_id
+            switch e1_text
+              when "/msg", "/msg@#{config.bot_name}"
+                if message.date and message.date >= start_time
+                  reply_text = if #message.entities > 1
+                    e2 = message.entities[2]
+                    e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
+                    user_id = switch e2.type
+                      when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
+                      when "text_mention" then e2.user.id
+                    local txt
+                    if user_id
+                      log "#{get_sender_log_tag message} generating message for #{e2_text}"
+                      txt = generate message.chat.id, user_id
+                    txt or= "<no data available for #{e2_text}>"
+                    txt
+                  else
+                    "<expected a user mention>"
+                  api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
+
+              when "/deletemydata", "/deletemydata@#{config.bot_name}"
+                if message.date and message.date >= start_time
+                  reply_text = "Are you sure you want to delete your Markov chain data in this group? " ..
+                    "Mention me with your answer."
+                  m = api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
+                  pending_self_deletes[message.from.id] = true
+                  log "#{get_sender_log_tag message} wants to delete their data"
+
+          when "mention"
+            if e1_text == "@#{config.bot_name}"
+              should_analyze = false
+              body = (trim message.text\sub e1.offset + 1 + e1.length)\lower!
+              if pending_self_deletes[message.from.id]
+                pending_self_deletes[message.from.id] = nil
+                local reply_text
+                if body == yes
+                  reply_text = if delete_markov message.chat.id, message.from.id
+                    log "#{get_sender_log_tag message} successfully deleted their data"
+                    "Okay. I deleted your data in this group."
+                  else
+                    log "#{get_sender_log_tag message} failed to delete their data"
+                    "Hmm... I tried to delete your data, but it failed for some reason."
+                else
+                  log "#{get_sender_log_tag message} cancelled their data deletion request"
+                  reply_text = "Okay. I won't delete your data then."
+                api.send_message message.chat.id, reply_text, nil, nil, nil, message.message_id
 
       if should_analyze then analyze message
   api
@@ -53,6 +88,9 @@ load_config = ->
   elseif config.token == nil
     print "error: missing \"token\" entry in #{config_file_path}"
     os.exit(1)
+  elseif config.bot_name == nil
+    print "error: missing \"bot_name\" entry in #{config_file_path}"
+    os.exit(1)
   config
 
 -- Analyzes the given Telegram message and updates 
@@ -60,7 +98,7 @@ load_config = ->
 analyze = (message) ->
   data = read_markov(message.chat.id, message.from.id) or { words: {} }
   words = get_words message.text
-  log "(#{message.chat.id}, #{get_sender_display_name message}): #{message.text}"
+  log "#{get_sender_log_tag message}: #{message.text}"
   add_words_to_markov data.words, words
   write_markov message.chat.id, message.from.id, data
 
@@ -97,6 +135,9 @@ write_markov = (chat_id, user_id, data) ->
   path = get_markov_path chat_id, user_id
   text = json.encode data
   write_file path, text
+
+delete_markov = (chat_id, user_id) ->
+  os.remove get_markov_path chat_id, user_id
 
 -- Adds a list of words to the given Markov chain.
 add_words_to_markov = (map, words) ->
@@ -172,6 +213,9 @@ get_random_word = (follow_map) ->
     current += count
     if i < current
       return word
+
+get_sender_log_tag = (message) ->
+  "(#{message.chat.id}, #{get_sender_display_name message})"
 
 -- Gets a display string for the sender of a message.
 get_sender_display_name = (message) ->
