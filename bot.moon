@@ -81,12 +81,10 @@ load_config = ->
   if config == nil
     print "error: failed to load #{config_file_path}"
     os.exit(1)
-  elseif config.token == nil
-    print "error: missing \"token\" entry in #{config_file_path}"
-    os.exit(1)
-  elseif config.bot_name == nil
-    print "error: missing \"bot_name\" entry in #{config_file_path}"
-    os.exit(1)
+  for key in *{ "token", "bot_name" }
+    if config[key] == nil
+      print "error: missing \"#{key}\" entry in #{config_file_path}"
+      os.exit(1)
   config
 
 -- Analyzes the given Telegram message and updates 
@@ -132,6 +130,7 @@ write_markov = (chat_id, user_id, data) ->
   text = json.encode data
   write_file path, text
 
+-- Deletes the Markov chain file for the given user in the given chat.
 delete_markov = (chat_id, user_id) ->
   os.remove get_markov_path chat_id, user_id
 
@@ -210,6 +209,7 @@ get_random_word = (follow_map) ->
     if i < current
       return word
 
+-- Gets a tag to identify a message's sender in the log.
 get_sender_log_tag = (message) ->
   "(#{message.chat.id}, #{get_sender_display_name message})"
 
