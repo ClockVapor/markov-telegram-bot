@@ -15,51 +15,52 @@ create_api = (config, start_time) ->
 
   api = require("telegram-bot-lua.core").configure config.token
   api.on_message = (message) ->
-    if message.from.username and message.from.id
-      store_username message.from.username, message.from.id
+    if message.from
+      if message.from.username and message.from.id
+        store_username message.from.username, message.from.id
 
-    if message.text
-      should_analyze = true
+      if message.text
+        should_analyze = true
 
-      if pending_self_deletes[message.from.id]
-        should_analyze = false
-        pending_self_deletes[message.from.id] = nil
-        reply_text = if trim(message.text) == yes
-          if delete_markov message.chat.id, message.from.id
-            "Okay. I deleted your data in this group."
+        if pending_self_deletes[message.from.id]
+          should_analyze = false
+          pending_self_deletes[message.from.id] = nil
+          reply_text = if trim(message.text) == yes
+            if delete_markov message.chat.id, message.from.id
+              "Okay. I deleted your data in this group."
+            else
+              "Hmm... I tried to delete your data, but it failed for some reason."
           else
-            "Hmm... I tried to delete your data, but it failed for some reason."
-        else
-          "Okay. I won't delete your data then."
-        reply message, reply_text
+            "Okay. I won't delete your data then."
+          reply message, reply_text
 
-      elseif message.entities and #message.entities > 0
-        e1 = message.entities[1]
-        e1_text = message.text\sub e1.offset + 1, e1.offset + e1.length
+        elseif message.entities and #message.entities > 0
+          e1 = message.entities[1]
+          e1_text = message.text\sub e1.offset + 1, e1.offset + e1.length
 
-        switch e1.type
-          when "bot_command"
-            should_analyze = false
-            switch e1_text
-              when "/msg", "/msg@#{config.bot_name}"
-                if message.date and message.date >= start_time
-                  reply_text = if #message.entities > 1
-                    e2 = message.entities[2]
-                    e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
-                    user_id = switch e2.type
-                      when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
-                      when "text_mention" then e2.user.id
-                    user_id and (generate message.chat.id, user_id) or "<no data available for #{e2_text}>"
-                  else
-                    "<expected a user mention>"
-                  reply message, reply_text
+          switch e1.type
+            when "bot_command"
+              should_analyze = false
+              switch e1_text
+                when "/msg", "/msg@#{config.bot_name}"
+                  if message.date and message.date >= start_time
+                    reply_text = if #message.entities > 1
+                      e2 = message.entities[2]
+                      e2_text = message.text\sub e2.offset + 1, e2.offset + e2.length
+                      user_id = switch e2.type
+                        when "mention" then get_user_id e2_text\sub 2 -- remove the leading @
+                        when "text_mention" then e2.user.id
+                      user_id and (generate message.chat.id, user_id) or "<no data available for #{e2_text}>"
+                    else
+                      "<expected a user mention>"
+                    reply message, reply_text
 
-              when "/deletemydata", "/deletemydata@#{config.bot_name}"
-                if message.date and message.date >= start_time
-                  pending_self_deletes[message.from.id] = true
-                  reply message, "Are you sure you want to delete your Markov chain data in this group?"
+                when "/deletemydata", "/deletemydata@#{config.bot_name}"
+                  if message.date and message.date >= start_time
+                    pending_self_deletes[message.from.id] = true
+                    reply message, "Are you sure you want to delete your Markov chain data in this group?"
 
-      if should_analyze then analyze message
+        if should_analyze then analyze message
 
   reply = (message, text) ->
     api.send_message message.chat.id, text, nil, nil, nil, message.message_id
