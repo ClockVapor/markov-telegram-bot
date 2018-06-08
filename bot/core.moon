@@ -179,4 +179,4 @@ get_markov_path = (chat_id, user_id) ->
 get_usernames_path = ->
   "#{get_data_path!}/usernames.json"
 
-{ :create_api }
+{ :create_api, :get_words, :get_random_word, :add_words_to_markov, :add_pair_to_markov }
