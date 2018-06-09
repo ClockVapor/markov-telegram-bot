@@ -1,5 +1,5 @@
 lfs = require "lfs"
-json = require "lunajson"
+json = require "cjson"
 { :join, :trim, :read_file, :write_file } = require "bot.util"
 local *
 
@@ -25,7 +25,7 @@ create_api = (config, start_time) ->
         if pending_self_deletes[message.from.id]
           should_analyze = false
           pending_self_deletes[message.from.id] = nil
-          reply_text = if trim(message.text) == yes
+          reply_text = if trim(message.text)\lower! == yes
             if delete_markov message.chat.id, message.from.id
               "Okay. I deleted your data in this group."
             else
@@ -58,7 +58,8 @@ create_api = (config, start_time) ->
                 when "/deletemydata", "/deletemydata@#{config.bot_name}"
                   if message.date and message.date >= start_time
                     pending_self_deletes[message.from.id] = true
-                    reply message, "Are you sure you want to delete your Markov chain data in this group?"
+                    reply message, "Are you sure you want to delete your Markov chain data in this group? Say " ..
+                      "\"yes\" to confirm, or anything else to cancel."
 
         if should_analyze then analyze message
 
@@ -141,7 +142,7 @@ get_user_id = (username) ->
 -- Stores a username to user id mapping in the usernames file.
 store_username = (username, user_id) ->
   map = read_usernames! or {}
-  map[username\lower!] = user_id
+  map[username\lower!] = tostring user_id
   write_usernames map
 
 -- Splits a string into a list of words.
