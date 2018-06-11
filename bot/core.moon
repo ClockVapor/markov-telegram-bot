@@ -71,9 +71,13 @@ create_api = (config, start_time) ->
 
             when "/deleteuserdata", "/deleteuserdata@#{config.bot_name}"
               if message.date and message.date >= start_time
-                result = api.get_chat_member message.chat.id, message.from.id
-                reply_text = if result and result.ok and
-                  (result.result.status == "administrator" or result.result.status == "creator")
+                admin = if message.chat.all_members_are_administrators
+                  true
+                else
+                  result = api.get_chat_member message.chat.id, message.from.id
+                  result and result.ok and
+                    (result.result.status == "administrator" or result.result.status == "creator")
+                reply_text = if admin
                   if #message.entities > 1
                     e2 = message.entities[2]
                     user_id, e2_text = get_mention_user_id message, e2
@@ -82,12 +86,9 @@ create_api = (config, start_time) ->
                       pending_self_deletes[message.from.id] = nil
                       "Are you sure you want to delete #{e2_text}'s Markov chain data in this group? Say \"yes\" to " ..
                         "confirm, or anything else to cancel."
-                    else
-                      "I couldn't find that user."
-                  else
-                    "You need to tell me which user's data to delete!"
-                else
-                  "You aren't an administrator!"
+                    else "I couldn't find that user."
+                  else "You need to tell me which user's data to delete!"
+                else "You aren't an administrator!"
                 reply message, reply_text
 
     if should_analyze then analyze message
