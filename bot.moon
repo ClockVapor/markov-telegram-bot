@@ -4,8 +4,9 @@ core = require "bot.core"
 local *
 
 main = ->
+  log "Initializing..."
   api = core.create_api load_config!, os.time!
-  log "bot started"
+  log "Bot started"
   api.run 100, 5, 0, { "message" }
 
 -- Loads config.yml as a table and verifies its contents.
@@ -14,11 +15,11 @@ load_config = ->
   local config
   pcall -> config = yaml.load read_file config_file_path
   if config == nil
-    print "error: failed to load #{config_file_path}"
+    print "error: Failed to load #{config_file_path}"
     os.exit 1
   for key in *{ "token", "bot_name" }
     if config[key] == nil
-      print "error: missing \"#{key}\" entry in #{config_file_path}"
+      print "error: Missing \"#{key}\" entry in #{config_file_path}"
       os.exit 1
   config
 
