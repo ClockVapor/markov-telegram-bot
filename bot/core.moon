@@ -1,6 +1,6 @@
 lfs = require "lfs"
 json = require "cjson"
-{ :join, :trim, :read_file, :write_file } = require "bot.util"
+{ :log, :join, :trim, :read_file, :write_file } = require "bot.util"
 local *
 
 -- Used for start and end of messages.
@@ -15,8 +15,20 @@ create_api = (config, start_time) ->
   local handle, reply
 
   api = require("telegram-bot-lua.core").configure config.token
+  bot_id = do
+    me = api.get_me!
+    if not (me and me.ok)
+      error "Failed to getMe() to get bot user information"
+    me.result.id
+  log "Bot ID = #{bot_id}"
+
   api.on_message = (message) ->
-    if message.from
+    if message.left_chat_member
+      if message.left_chat_member.id == bot_id
+        delete_chat message.chat.id
+      else
+        delete_markov message.chat.id, message.left_chat_member.id
+    elseif message.from
       if message.from.username and message.from.id
         store_username message.from.username, message.from.id
       if message.text
@@ -145,6 +157,19 @@ write_markov = (chat_id, user_id, data) ->
 -- Deletes the Markov chain file for the given user in the given chat.
 delete_markov = (chat_id, user_id) ->
   os.remove get_markov_path chat_id, user_id
+
+-- Deletes all data associated with the given chat id.
+delete_chat = (chat_id) ->
+  chat_path = get_chat_path chat_id
+  pcall ->
+    for f in lfs.dir chat_path
+      if f != "." and f != ".."
+        res, e = os.remove "#{chat_path}/#{f}"
+        if not res
+          log "Failed to remove file #{f}: #{e}"
+    res, e = os.remove chat_path
+    if not res
+      log "Failed to remove chat directory #{chat_id}: #{e}"
 
 -- Adds a list of words to the given Markov chain.
 add_words_to_markov = (map, words) ->
