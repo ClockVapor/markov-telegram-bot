@@ -11,7 +11,7 @@ main = ->
 -- Loads config.yml as a table and verifies its contents.
 load_config = ->
   config_file_path = "config.yml"
-  config = nil
+  local config
   pcall -> config = yaml.load read_file config_file_path
   if config == nil
     print "error: failed to load #{config_file_path}"
