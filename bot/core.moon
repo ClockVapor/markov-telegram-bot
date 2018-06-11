@@ -1,6 +1,6 @@
 lfs = require "lfs"
 json = require "cjson"
-{ :log, :join, :trim, :read_file, :write_file } = require "bot.util"
+{ :log, :join, :trim, :read_file, :write_file, :mkdir } = require "bot.util"
 local *
 
 -- Used for start and end of messages.
@@ -23,8 +23,15 @@ create_api = (config, start_time) ->
   log "Bot ID = #{bot_id}"
 
   api.on_message = (message) ->
+    if message.new_chat_members
+      for user in *message.new_chat_members
+        if user.id == bot_id
+          log "Bot was added to chat #{message.chat.id}"
+          get_chat_path message.chat.id -- create an empty directory for the new chat
+          break
     if message.left_chat_member
       if message.left_chat_member.id == bot_id
+        log "Bot was removed from chat #{message.chat.id}"
         delete_chat message.chat.id
       else
         delete_markov message.chat.id, message.left_chat_member.id
@@ -169,7 +176,7 @@ delete_chat = (chat_id) ->
           log "Failed to remove file #{f}: #{e}"
     res, e = os.remove chat_path
     if not res
-      log "Failed to remove chat directory #{chat_id}: #{e}"
+      log "Failed to remove chat directory #{chat_path}: #{e}"
 
 -- Adds a list of words to the given Markov chain.
 add_words_to_markov = (map, words) ->
@@ -227,13 +234,13 @@ get_random_word = (word_count_map) ->
 -- Creates the data directory and returns its path.
 get_data_path = ->
   path = "data"
-  lfs.mkdir path
+  mkdir path
   path
 
 -- Creates the directory for a chat and returns its path.
 get_chat_path = (chat_id) ->
   path = "#{get_data_path!}/#{chat_id}"
-  lfs.mkdir path
+  mkdir path
   path
 
 -- Creates the directory for the Markov chain file for the given user
