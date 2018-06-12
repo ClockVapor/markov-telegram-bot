@@ -1,6 +1,6 @@
 lfs = require "lfs"
 json = require "cjson"
-{ :log, :join, :trim, :read_file, :write_file, :mkdir } = require "bot.util"
+{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try } = require "bot.util"
 local *
 
 -- Used for start and end of messages.
@@ -150,10 +150,7 @@ get_mention_user_id = (message, element) ->
 
 -- Reads the Markov chain file for the given user in the given chat, or returns nil if it isn't found.
 read_markov = (chat_id, user_id) ->
-  path = get_markov_path chat_id, user_id
-  local data
-  pcall -> data = json.decode read_file path
-  data
+  try -> json.decode read_file get_markov_path chat_id, user_id
 
 -- Writes to the Markov chain file for the given user in the given chat.
 write_markov = (chat_id, user_id, data) ->
@@ -197,9 +194,7 @@ add_pair_to_markov = (map, word, next_word) ->
 
 -- Reads the stored map of usernames to user ids, or returns nil if it cannot be read.
 read_usernames = ->
-  local map
-  pcall -> map = json.decode read_file get_usernames_path!
-  map
+  try -> json.decode read_file get_usernames_path!
 
 -- Writes a map of usernames to user ids to the usernames file.
 write_usernames = (map) ->
