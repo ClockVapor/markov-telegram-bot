@@ -33,6 +33,7 @@ write_file = (path, text) ->
   text = file\write text
   io.close file
 
+-- Creates a directory with error logging if necessary.
 mkdir = (path) ->
   res = lfs.attributes path, "mode"
   if not res -- only continue if the file didn't exist
@@ -40,4 +41,10 @@ mkdir = (path) ->
     if not res
       log "Failed to create directory \"#{path}\": #{e}"
 
-{ :log, :join, :trim, :read_file, :write_file, :mkdir }
+-- Does a pcall() of the given function and returns its result or nil if it failed.
+try = (f) ->
+  local result
+  pcall -> result = f!
+  result
+
+{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try }
