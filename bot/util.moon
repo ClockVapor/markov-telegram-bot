@@ -47,4 +47,10 @@ try = (f) ->
   pcall -> result = f!
   result
 
-{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try }
+-- Gets the total number of pairs in a table, array part included.
+pairslen = (t) ->
+  len = 0
+  for _ in pairs t do len += 1
+  len
+
+{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try, :pairslen }

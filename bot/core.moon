@@ -1,6 +1,6 @@
 lfs = require "lfs"
 json = require "cjson"
-{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try } = require "bot.util"
+{ :log, :join, :trim, :read_file, :write_file, :mkdir, :try, :pairslen } = require "bot.util"
 local *
 
 -- Used for start and end of messages.
@@ -11,6 +11,7 @@ empty_word = ""
 create_api = (config, start_time) ->
   pending_self_deletes = {}
   pending_user_deletes = {}
+  pending_message_deletes = {}
   yes = "yes"
   local handle, reply
 
@@ -63,6 +64,16 @@ create_api = (config, start_time) ->
       else "Okay. I won't delete their data then."
       reply message, reply_text
 
+    elseif pending_message_deletes[message.from.id]
+      should_analyze = false
+      msg = pending_message_deletes[message.from.id]
+      pending_message_deletes[message.from.id] = nil
+      reply_text = if trim(message.text)\lower! == yes
+        remove msg
+        "Okay. I deleted that message from your data in this group."
+      else "Okay. I won't delete that message from your data then."
+      reply message, reply_text
+
     elseif message.entities and #message.entities > 0
       e1 = message.entities[1]
       e1_text = message.text\sub e1.offset + 1, e1.offset + e1.length
@@ -85,6 +96,7 @@ create_api = (config, start_time) ->
               if message.date and message.date >= start_time
                 pending_self_deletes[message.from.id] = true
                 pending_user_deletes[message.from.id] = nil
+                pending_message_deletes[message.from.id] = nil
                 reply message, "Are you sure you want to delete your Markov chain data in this group? Say " ..
                   "\"yes\" to confirm, or anything else to cancel."
 
@@ -103,11 +115,26 @@ create_api = (config, start_time) ->
                     if user_id
                       pending_user_deletes[message.from.id] = user_id
                       pending_self_deletes[message.from.id] = nil
+                      pending_message_deletes[message.from.id] = nil
                       "Are you sure you want to delete #{e2_text}'s Markov chain data in this group? Say \"yes\" to " ..
                         "confirm, or anything else to cancel."
                     else "I couldn't find that user."
                   else "You need to tell me which user's data to delete!"
                 else "You aren't an administrator!"
+                reply message, reply_text
+
+            when "/deletemessagedata", "/deletemessagedata@#{config.bot_name}"
+              if message.date and message.date >= start_time
+                reply_to_message = message.reply_to_message
+                reply_text = if reply_to_message
+                  if reply_to_message.from and reply_to_message.from.id == message.from.id
+                    pending_self_deletes[message.from.id] = nil
+                    pending_user_deletes[message.from.id] = nil
+                    pending_message_deletes[message.from.id] = reply_to_message
+                    "Are you sure you want to delete that message from your Markov chain data? Say \"yes\" to " ..
+                      "confirm, or anything else to cancel."
+                  else "That isn't your message!"
+                else "You need to reply to your message whose data you want to delete!"
                 reply message, reply_text
 
     if should_analyze then analyze message
@@ -123,6 +150,16 @@ analyze = (message) ->
   words = get_words message.text
   add_words_to_markov data.words, words
   write_markov message.chat.id, message.from.id, data
+
+remove = (message) ->
+  data = read_markov message.chat.id, message.from.id
+  if data and data.words
+    words = get_words message.text
+    remove_words_from_markov data.words, words
+    if pairslen(data.words) == 0
+      delete_markov message.chat.id, message.from.id
+    else
+      write_markov message.chat.id, message.from.id, data
 
 -- Generates a message for the given user in the given chat.
 generate = (chat_id, user_id) ->
@@ -184,6 +221,15 @@ add_words_to_markov = (map, words) ->
       add_pair_to_markov map, words[i], words[i + 1]
     add_pair_to_markov map, words[len], empty_word
 
+-- Removes a list of words from the given Markov chain.
+remove_words_from_markov = (map, words) ->
+  len = #words
+  if len > 0
+    remove_pair_from_markov map, empty_word, words[1]
+    for i = 1, len - 1
+      remove_pair_from_markov map, words[i], words[i + 1]
+    remove_pair_from_markov map, words[len], empty_word
+
 -- Adds one pair of (word, next_word) to the given Markov chain.
 add_pair_to_markov = (map, word, next_word) ->
   map[word] or= {}
@@ -191,6 +237,15 @@ add_pair_to_markov = (map, word, next_word) ->
     map[word][next_word] = 1
   else
     map[word][next_word] += 1
+
+-- Removes one pair of (word, next_word) from the given Markov chain.
+remove_pair_from_markov = (map, word, next_word) ->
+  if map[word] and map[word][next_word]
+    map[word][next_word] -= 1
+    if map[word][next_word] == 0
+      map[word][next_word] = nil
+      if pairslen(map[word]) == 0
+        map[word] = nil
 
 -- Reads the stored map of usernames to user ids, or returns nil if it cannot be read.
 read_usernames = ->
@@ -247,4 +302,5 @@ get_markov_path = (chat_id, user_id) ->
 get_usernames_path = ->
   "#{get_data_path!}/usernames.json"
 
-{ :create_api, :get_words, :get_random_word, :add_words_to_markov, :add_pair_to_markov }
+{ :create_api, :get_words, :get_random_word, :add_words_to_markov, :add_pair_to_markov, :remove_words_from_markov,
+  :remove_pair_from_markov }
