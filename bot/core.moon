@@ -151,6 +151,7 @@ analyze = (message) ->
   add_words_to_markov data.words, words
   write_markov message.chat.id, message.from.id, data
 
+-- Removes the given message from its sender's Markov chain file.
 remove = (message) ->
   data = read_markov message.chat.id, message.from.id
   if data and data.words
