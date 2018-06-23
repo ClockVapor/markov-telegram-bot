@@ -1,4 +1,6 @@
-data
+.idea/
+target/
+data/
 config.yml
-*.lua
+*.iml
 *.swp
