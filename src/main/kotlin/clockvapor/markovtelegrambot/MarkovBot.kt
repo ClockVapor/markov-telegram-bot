@@ -207,7 +207,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
     }
 
     private fun analyzeMessage(message: Message) {
-        val path = getMarkovPath(message.chat.id.toString(), message.from.id.toString())
+        val path = getMarkovPath(message.chat.id.toString(), message.from!!.id.toString())
         val markovChain = tryOrNull { MarkovChain.read(path) } ?: MarkovChain()
         markovChain.add(message.text!!.split(whitespaceRegex))
         markovChain.write(path)
