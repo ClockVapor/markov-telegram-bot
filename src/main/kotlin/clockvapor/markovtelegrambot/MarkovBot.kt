@@ -214,7 +214,8 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
     }
 
     private fun generateMessage(chatId: String, userId: String): String? =
-        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate()?.joinToString(" ")
+        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate()
+            ?.takeIf(List<String>::isNotEmpty)?.joinToString(" ")
 
     private fun reply(bot: Bot, message: Message, text: String) {
         bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt())
