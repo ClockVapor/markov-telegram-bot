@@ -15,6 +15,7 @@ fun log(s: String) {
 
 fun log(t: Throwable) {
     log(t.localizedMessage)
+    t.printStackTrace()
 }
 
 fun getMessageEntityText(message: Message, entity: MessageEntity): String =
