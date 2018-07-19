@@ -77,7 +77,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
                     if (deleteOwnData.isEmpty()) {
                         wantToDeleteOwnData -= chatId
                     }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == "yes") {
+                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
                         if (deleteMarkov(chatId, senderId)) {
                             "Okay. I deleted your Markov chain data in this group."
                         } else {
@@ -95,7 +95,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
                     if (deleteUserData.isEmpty()) {
                         wantToDeleteUserData -= chatId
                     }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == "yes") {
+                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
                         if (deleteMarkov(chatId, userIdToDelete)) {
                             "Okay. I deleted their Markov chain data in this group."
                         } else {
@@ -113,7 +113,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
                     if (deleteMessageData.isEmpty()) {
                         wantToDeleteMessageData -= chatId
                     }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == "yes") {
+                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
                         deleteMessage(chatId, senderId, messageToDelete)
                         "Okay. I deleted that message from your Markov chain data in this group."
                     } else {
@@ -140,7 +140,25 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
                                         if (mentionUserId == null) {
                                             null
                                         } else {
-                                            generateMessage(chatId, mentionUserId)
+                                            val remainingTexts = text.substring(e1.offset + e1.length).trim()
+                                                .takeIf { it.isNotBlank() }
+                                                ?.split(whitespaceRegex) ?: emptyList()
+                                            when (remainingTexts.size) {
+                                                0 -> generateMessage(chatId, mentionUserId)
+
+                                                1 -> generateMessage(chatId, mentionUserId,
+                                                    remainingTexts.first())?.let { result ->
+
+                                                    when (result) {
+                                                        is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
+                                                            "<no such seed exists for $e1Text>"
+                                                        is MarkovChain.GenerateWithSeedResult.Success ->
+                                                            result.message.takeIf { it.isNotEmpty() }?.joinToString(" ")
+                                                    }
+                                                }
+
+                                                else -> "<expected only one seed word>"
+                                            }
                                         } ?: "<no data available for $e1Text>"
                                     } else {
                                         null
@@ -215,7 +233,11 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
 
     private fun generateMessage(chatId: String, userId: String): String? =
         tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate()
-            ?.takeIf(List<String>::isNotEmpty)?.joinToString(" ")
+            ?.takeIf { it.isNotEmpty() }?.joinToString(" ")
+
+    private fun generateMessage(chatId: String, userId: String,
+                                seed: String): MarkovChain.GenerateWithSeedResult? =
+        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate(seed)
 
     private fun reply(bot: Bot, message: Message, text: String) {
         bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt())
@@ -282,6 +304,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
         text == "/$command" || text == "/$command@$name"
 
     companion object {
+        private const val YES = "yes"
         private val whitespaceRegex = Regex("\\s+")
 
         @JvmStatic

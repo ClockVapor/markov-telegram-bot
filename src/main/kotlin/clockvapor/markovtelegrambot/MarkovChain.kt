@@ -19,6 +19,19 @@ class MarkovChain(val data: MutableMap<String, MutableMap<String, Int>>) {
         return result
     }
 
+    fun generate(seed: String): GenerateWithSeedResult =
+        if (contains(seed)) {
+            val result = mutableListOf<String>()
+            var word: String? = seed
+            while (word != null && word != EMPTY) {
+                result += word
+                word = getWeightedRandomWord(word)
+            }
+            GenerateWithSeedResult.Success(result)
+        } else {
+            GenerateWithSeedResult.NoSuchSeed()
+        }
+
     fun add(words: List<String>) {
         if (words.isNotEmpty()) {
             addPair(EMPTY, words.first())
@@ -38,6 +51,8 @@ class MarkovChain(val data: MutableMap<String, MutableMap<String, Int>>) {
             removePair(words.last(), EMPTY)
         }
     }
+
+    fun contains(word: String): Boolean = data.contains(word)
 
     private fun addPair(a: String, b: String) {
         data.getOrPut(a) { mutableMapOf() }.compute(b) { _, c -> c?.plus(1) ?: 1 }
@@ -70,6 +85,11 @@ class MarkovChain(val data: MutableMap<String, MutableMap<String, Int>>) {
 
     fun write(path: String) {
         ObjectMapper().writeValue(File(path), this)
+    }
+
+    sealed class GenerateWithSeedResult {
+        class NoSuchSeed : GenerateWithSeedResult()
+        class Success(val message: List<String>) : GenerateWithSeedResult()
     }
 
     companion object {
