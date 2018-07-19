@@ -8,10 +8,7 @@ import me.ivmg.telegram.Bot
 import me.ivmg.telegram.bot
 import me.ivmg.telegram.dispatch
 import me.ivmg.telegram.dispatcher.handlers.Handler
-import me.ivmg.telegram.entities.Message
-import me.ivmg.telegram.entities.MessageEntity
-import me.ivmg.telegram.entities.Update
-import me.ivmg.telegram.entities.User
+import me.ivmg.telegram.entities.*
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
 import java.nio.file.Paths
@@ -169,6 +166,8 @@ class Bot(val token: String, val dataPath: String) {
     private fun doMessageCommand(bot: Bot, message: Message, chatId: String, text: String,
                                  entities: List<MessageEntity>) {
 
+        var parseMode: ParseMode? = null
+
         val replyText = if (entities.size < 2) {
             null
         } else {
@@ -178,6 +177,12 @@ class Bot(val token: String, val dataPath: String) {
                 if (mentionUserId == null) {
                     null
                 } else {
+                    val formattedUserName = if (e1.type == "text_mention") {
+                        parseMode = ParseMode.MARKDOWN
+                        createInlineMention(e1Text, mentionUserId)
+                    } else {
+                        e1Text
+                    }
                     val remainingTexts = text.substring(e1.offset + e1.length).trim()
                         .takeIf { it.isNotBlank() }
                         ?.split(whitespaceRegex).orEmpty()
@@ -189,7 +194,7 @@ class Bot(val token: String, val dataPath: String) {
 
                             when (result) {
                                 is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
-                                    "<no such seed exists for $e1Text>"
+                                    "<no such seed exists for $formattedUserName>"
                                 is MarkovChain.GenerateWithSeedResult.Success ->
                                     result.message.takeIf { it.isNotEmpty() }
                                         ?.joinToString(" ")
@@ -203,7 +208,7 @@ class Bot(val token: String, val dataPath: String) {
                 null
             }
         } ?: "<expected a user mention>"
-        reply(bot, message, replyText)
+        reply(bot, message, replyText, parseMode)
     }
 
     private fun doDeleteMyDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
@@ -217,6 +222,7 @@ class Bot(val token: String, val dataPath: String) {
     private fun doDeleteUserDataCommand(bot: Bot, message: Message, chatId: String, from: User, senderId: String,
                                         entities: List<MessageEntity>) {
 
+        var parseMode: ParseMode? = null
         val replyText = if (isAdmin(bot, message.chat, from.id)) {
             if (entities.size < 2) {
                 null
@@ -227,9 +233,15 @@ class Bot(val token: String, val dataPath: String) {
                     if (mentionUserId == null) {
                         null
                     } else {
+                        val formattedUsername = if (e1.type == "text_mention") {
+                            parseMode = ParseMode.MARKDOWN
+                            createInlineMention(e1Text, mentionUserId)
+                        } else {
+                            e1Text
+                        }
                         wantToDeleteUserData
                             .getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
-                        "Are you sure you want to delete $e1Text's Markov chain data in " +
+                        "Are you sure you want to delete $formattedUsername's Markov chain data in " +
                             "this group? Say \"yes\" to confirm, or anything else to cancel."
                     } ?: "I don't have any data for $e1Text."
                 } else {
@@ -239,7 +251,7 @@ class Bot(val token: String, val dataPath: String) {
         } else {
             "You aren't an administrator."
         }
-        reply(bot, message, replyText)
+        reply(bot, message, replyText, parseMode)
     }
 
     private fun doDeleteMessageDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
@@ -274,8 +286,8 @@ class Bot(val token: String, val dataPath: String) {
                                 seed: String): MarkovChain.GenerateWithSeedResult? =
         tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generateWithCaseInsensitiveSeed(seed)
 
-    private fun reply(bot: Bot, message: Message, text: String) {
-        bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt())
+    private fun reply(bot: Bot, message: Message, text: String, parseMode: ParseMode? = null) {
+        bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt(), parseMode = parseMode)
     }
 
     private fun getMentionUserId(message: Message, entity: MessageEntity): Pair<String?, String> {

@@ -24,6 +24,9 @@ fun getMessageEntityText(message: Message, entity: MessageEntity): String =
 fun MessageEntity.isMention(): Boolean =
     type == "mention" || type == "text_mention"
 
+fun createInlineMention(text: String, userId: String): String =
+    "[$text](tg://user?id=$userId)"
+
 fun isAdmin(bot: Bot, chat: Chat, userId: Long): Boolean = if (chat.allMembersAreAdministrators == true) {
     true
 } else {
