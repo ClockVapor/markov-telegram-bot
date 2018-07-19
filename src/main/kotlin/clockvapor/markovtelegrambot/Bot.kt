@@ -16,8 +16,9 @@ import java.io.File
 import java.nio.file.Paths
 import java.util.*
 
-class Bot(val name: String, val token: String, val dataPath: String) {
+class Bot(val token: String, val dataPath: String) {
     private var myId: Long? = null
+    private lateinit var myUsername: String
     private val wantToDeleteOwnData = mutableMapOf<String, MutableSet<String>>()
     private val wantToDeleteUserData = mutableMapOf<String, MutableMap<String, String>>()
     private val wantToDeleteMessageData = mutableMapOf<String, MutableMap<String, String>>()
@@ -33,8 +34,12 @@ class Bot(val name: String, val token: String, val dataPath: String) {
                 })
             }
         }
-        myId = bot.getMe().first?.body()?.result?.id ?: throw Exception("Failed to retrieve bot's user ID")
+        bot.getMe().first?.body()?.result?.let { me ->
+            myId = me.id
+            myUsername = me.username ?: throw Exception("Bot has no username")
+        } ?: throw Exception("Failed to retrieve bot's user")
         log("Bot ID = $myId")
+        log("Bot username = $myUsername")
         log("Bot started")
         bot.startPolling()
     }
@@ -303,7 +308,7 @@ class Bot(val name: String, val token: String, val dataPath: String) {
     }
 
     private fun matchesCommand(text: String, command: String): Boolean =
-        text == "/$command" || text == "/$command@$name"
+        text == "/$command" || text == "/$command@$myUsername"
 
     companion object {
         private const val YES = "yes"
@@ -313,7 +318,7 @@ class Bot(val name: String, val token: String, val dataPath: String) {
         fun main(args: Array<String>) = mainBody {
             val a = ArgParser(args).parseInto(::Args)
             val config = Config.read(a.configPath)
-            Bot(config.telegramBotName, config.telegramBotToken, a.dataPath).run()
+            Bot(config.telegramBotToken, a.dataPath).run()
         }
     }
 
