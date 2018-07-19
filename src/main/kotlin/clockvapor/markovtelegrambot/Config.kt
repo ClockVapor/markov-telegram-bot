@@ -8,9 +8,7 @@ class Config {
     lateinit var telegramBotToken: String
 
     companion object {
-        fun read(path: String): Config {
-            val mapper = ObjectMapper(YAMLFactory())
-            return mapper.readValue<Config>(File(path), Config::class.java)
-        }
+        fun read(path: String): Config =
+            ObjectMapper(YAMLFactory()).readValue<Config>(File(path), Config::class.java)
     }
 }

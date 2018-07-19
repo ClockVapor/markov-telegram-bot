@@ -34,17 +34,7 @@ fun isAdmin(bot: Bot, chat: Chat, userId: Long): Boolean = if (chat.allMembersAr
 
 fun getChatMember(bot: Bot, chatId: Long, userId: Long): ChatMember? {
     val (response, _) = bot.getChatMember(chatId, userId)
-    return if (response != null && response.isSuccessful) {
-        response.body()?.let { body ->
-            if (body.ok) {
-                body.result
-            } else {
-                null
-            }
-        }
-    } else {
-        null
-    }
+    return response?.takeIf { it.isSuccessful }?.body()?.takeIf { it.ok }?.result
 }
 
 fun <T> tryOrNull(f: () -> T): T? = try {
