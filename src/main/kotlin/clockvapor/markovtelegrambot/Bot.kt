@@ -1,5 +1,6 @@
 package clockvapor.markovtelegrambot
 
+import clockvapor.markov.MarkovChain
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.mainBody
@@ -15,7 +16,7 @@ import java.io.File
 import java.nio.file.Paths
 import java.util.*
 
-class MarkovBot(val name: String, val token: String, val dataPath: String) {
+class Bot(val name: String, val token: String, val dataPath: String) {
     private var myId: Long? = null
     private val wantToDeleteOwnData = mutableMapOf<String, MutableSet<String>>()
     private val wantToDeleteUserData = mutableMapOf<String, MutableMap<String, String>>()
@@ -23,7 +24,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
 
     fun run() {
         val bot = bot {
-            this@bot.token = this@MarkovBot.token
+            this@bot.token = this@Bot.token
             logLevel = HttpLoggingInterceptor.Level.NONE
             dispatch {
                 addHandler(object : Handler({ bot, update -> handleUpdate(bot, update) }) {
@@ -153,7 +154,8 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
                                                         is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
                                                             "<no such seed exists for $e1Text>"
                                                         is MarkovChain.GenerateWithSeedResult.Success ->
-                                                            result.message.takeIf { it.isNotEmpty() }?.joinToString(" ")
+                                                            result.message.takeIf { it.isNotEmpty() }
+                                                                ?.joinToString(" ")
                                                     }
                                                 }
 
@@ -237,7 +239,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
 
     private fun generateMessage(chatId: String, userId: String,
                                 seed: String): MarkovChain.GenerateWithSeedResult? =
-        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate(seed)
+        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generateWithCaseInsensitiveSeed(seed)
 
     private fun reply(bot: Bot, message: Message, text: String) {
         bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt())
@@ -311,7 +313,7 @@ class MarkovBot(val name: String, val token: String, val dataPath: String) {
         fun main(args: Array<String>) = mainBody {
             val a = ArgParser(args).parseInto(::Args)
             val config = Config.read(a.configPath)
-            MarkovBot(config.telegramBotName, config.telegramBotToken, a.dataPath).run()
+            Bot(config.telegramBotName, config.telegramBotToken, a.dataPath).run()
         }
     }
 
