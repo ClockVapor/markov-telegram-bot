@@ -35,3 +35,21 @@ The `/deleteuserdata` command allows group admins to delete Markov chain data fo
 an admin, simply send the command with a user mention following it, and confirm your choice when the bot asks:
 `/deleteuserdata @some_user`. As with the `/msg` command, just type the `@` character and select a user from the dropdown that
 opens.
+
+## Running the Bot
+
+The program expects two arguments:
+
+1. Path to a config YAML file.
+2. Path to a data directory. This is where all of the Markov chain data will be stored.
+
+These arguments are given like so:
+
+-c \<config yml path> -d \<data directory path>
+
+The data directory doesn't need to exist ahead of time. The config YAML file does though, and it must contain the following
+entry and nothing else:
+
+    telegramBotToken: <your bot token>
+
+That's it!
