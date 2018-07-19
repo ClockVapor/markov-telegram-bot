@@ -11,6 +11,7 @@ import me.ivmg.telegram.dispatcher.handlers.Handler
 import me.ivmg.telegram.entities.Message
 import me.ivmg.telegram.entities.MessageEntity
 import me.ivmg.telegram.entities.Update
+import me.ivmg.telegram.entities.User
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
 import java.nio.file.Paths
@@ -45,190 +46,217 @@ class Bot(val token: String, val dataPath: String) {
     }
 
     private fun handleUpdate(bot: Bot, update: Update) {
-        update.message?.let {
-            handleMessage(bot, it)
-        }
+        update.message?.let { handleMessage(bot, it) }
     }
 
     private fun handleMessage(bot: Bot, message: Message) {
         val chatId = message.chat.id.toString()
-        message.newChatMember?.let { newUser ->
-            if (newUser.id == myId!!) {
-                log("Added to group $chatId")
+        message.newChatMember?.takeIf { it.id == myId!! }?.let { log("Added to group $chatId") }
+        message.leftChatMember?.takeIf { it.id == myId!! }?.let {
+            log("Removed from group $chatId")
+            deleteChat(chatId)
+        }
+        message.from?.let { handleMessage(bot, message, chatId, it) }
+    }
+
+    private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User) {
+        val senderId = from.id.toString()
+        from.username?.takeIf { it.isNotBlank() }?.let { storeUsername(it, senderId) }
+        message.text?.let { handleMessage(bot, message, chatId, from, senderId, it) }
+    }
+
+    private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User, senderId: String, text: String) {
+        var shouldAnalyzeMessage = handleQuestionResponse(bot, message, chatId, senderId, text)
+        if (shouldAnalyzeMessage) {
+            message.entities?.takeIf { it.isNotEmpty() }?.let {
+                shouldAnalyzeMessage = handleMessage(bot, message, chatId, from, senderId, text, it)
             }
         }
-        message.leftChatMember?.let { leftUser ->
-            if (leftUser.id == myId!!) {
-                log("Removed from group $chatId")
-                deleteChat(chatId)
+        if (shouldAnalyzeMessage) {
+            analyzeMessage(message)
+        }
+    }
+
+    private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User, senderId: String, text: String,
+                              entities: List<MessageEntity>): Boolean {
+
+        var shouldAnalyzeMessage = true
+        val e0 = entities[0]
+        if (e0.type == "bot_command" && e0.offset == 0) {
+            shouldAnalyzeMessage = false
+            val e0Text = getMessageEntityText(message, e0)
+
+            when {
+                matchesCommand(e0Text, "msg") ->
+                    doMessageCommand(bot, message, chatId, text, entities)
+
+                matchesCommand(e0Text, "deletemydata") ->
+                    doDeleteMyDataCommand(bot, message, chatId, senderId)
+
+                matchesCommand(e0Text, "deleteuserdata") ->
+                    doDeleteUserDataCommand(bot, message, chatId, from, senderId, entities)
+
+                matchesCommand(e0Text, "deletemessagedata") ->
+                    doDeleteMessageDataCommand(bot, message, chatId, senderId)
             }
         }
-        message.from?.let { from ->
-            val senderId = from.id.toString()
-            from.username?.let { username ->
-                if (username.isNotEmpty()) {
-                    storeUsername(username, senderId)
-                }
+
+        return shouldAnalyzeMessage
+    }
+
+    private fun handleQuestionResponse(bot: Bot, message: Message, chatId: String, senderId: String,
+                                       text: String): Boolean {
+
+        var shouldAnalyzeMessage = true
+        val deleteOwnData = wantToDeleteOwnData[chatId]
+        val deleteUserData = wantToDeleteUserData[chatId]
+        val deleteMessageData = wantToDeleteMessageData[chatId]
+
+        if (deleteOwnData?.contains(senderId) == true) {
+            shouldAnalyzeMessage = false
+            deleteOwnData -= senderId
+            if (deleteOwnData.isEmpty()) {
+                wantToDeleteOwnData -= chatId
             }
-
-            message.text?.let { text ->
-                var shouldAnalyze = true
-                val deleteOwnData = wantToDeleteOwnData[chatId]
-                val deleteUserData = wantToDeleteUserData[chatId]
-                val deleteMessageData = wantToDeleteMessageData[chatId]
-
-                if (deleteOwnData?.contains(senderId) == true) {
-                    shouldAnalyze = false
-                    deleteOwnData -= senderId
-                    if (deleteOwnData.isEmpty()) {
-                        wantToDeleteOwnData -= chatId
-                    }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                        if (deleteMarkov(chatId, senderId)) {
-                            "Okay. I deleted your Markov chain data in this group."
-                        } else {
-                            "Hmm. I tried to delete your Markov chain data in this group, but something went wrong."
-                        }
-                    } else {
-                        "Okay. I won't delete your Markov chain data in this group then."
-                    }
-                    reply(bot, message, replyText)
-
-                } else if (deleteUserData?.contains(senderId) == true) {
-                    shouldAnalyze = false
-                    val userIdToDelete = deleteUserData[senderId]!!
-                    deleteUserData -= senderId
-                    if (deleteUserData.isEmpty()) {
-                        wantToDeleteUserData -= chatId
-                    }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                        if (deleteMarkov(chatId, userIdToDelete)) {
-                            "Okay. I deleted their Markov chain data in this group."
-                        } else {
-                            "Hmm. I tried to delete their Markov chain data in this group, but something went wrong."
-                        }
-                    } else {
-                        "Okay. I won't delete their Markov chain data in this group then."
-                    }
-                    reply(bot, message, replyText)
-
-                } else if (deleteMessageData?.contains(senderId) == true) {
-                    shouldAnalyze = false
-                    val messageToDelete = deleteMessageData[senderId]!!
-                    deleteMessageData -= senderId
-                    if (deleteMessageData.isEmpty()) {
-                        wantToDeleteMessageData -= chatId
-                    }
-                    val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                        deleteMessage(chatId, senderId, messageToDelete)
-                        "Okay. I deleted that message from your Markov chain data in this group."
-                    } else {
-                        "Okay. I won't delete that message from your Markov chain data in this group then."
-                    }
-                    reply(bot, message, replyText)
+            val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
+                if (deleteMarkov(chatId, senderId)) {
+                    "Okay. I deleted your Markov chain data in this group."
+                } else {
+                    "Hmm. I tried to delete your Markov chain data in this group, but something went wrong."
                 }
+            } else {
+                "Okay. I won't delete your Markov chain data in this group then."
+            }
+            reply(bot, message, replyText)
 
+        } else if (deleteUserData?.contains(senderId) == true) {
+            shouldAnalyzeMessage = false
+            val userIdToDelete = deleteUserData[senderId]!!
+            deleteUserData -= senderId
+            if (deleteUserData.isEmpty()) {
+                wantToDeleteUserData -= chatId
+            }
+            val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
+                if (deleteMarkov(chatId, userIdToDelete)) {
+                    "Okay. I deleted their Markov chain data in this group."
+                } else {
+                    "Hmm. I tried to delete their Markov chain data in this group, but something went wrong."
+                }
+            } else {
+                "Okay. I won't delete their Markov chain data in this group then."
+            }
+            reply(bot, message, replyText)
 
-                message.entities?.let { entities ->
-                    if (entities.isNotEmpty()) {
-                        val e0 = entities[0]
-                        if (e0.type == "bot_command" && e0.offset == 0) {
-                            shouldAnalyze = false
-                            val e0Text = getMessageEntityText(message, e0)
+        } else if (deleteMessageData?.contains(senderId) == true) {
+            shouldAnalyzeMessage = false
+            val messageToDelete = deleteMessageData[senderId]!!
+            deleteMessageData -= senderId
+            if (deleteMessageData.isEmpty()) {
+                wantToDeleteMessageData -= chatId
+            }
+            val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
+                deleteMessage(chatId, senderId, messageToDelete)
+                "Okay. I deleted that message from your Markov chain data in this group."
+            } else {
+                "Okay. I won't delete that message from your Markov chain data in this group then."
+            }
+            reply(bot, message, replyText)
+        }
 
-                            if (matchesCommand(e0Text, "msg")) {
-                                val replyText = if (entities.size < 2) {
-                                    null
-                                } else {
-                                    val e1 = entities[1]
-                                    if (e1.isMention()) {
-                                        val (mentionUserId, e1Text) = getMentionUserId(message, e1)
-                                        if (mentionUserId == null) {
-                                            null
-                                        } else {
-                                            val remainingTexts = text.substring(e1.offset + e1.length).trim()
-                                                .takeIf { it.isNotBlank() }
-                                                ?.split(whitespaceRegex) ?: emptyList()
-                                            when (remainingTexts.size) {
-                                                0 -> generateMessage(chatId, mentionUserId)
+        return shouldAnalyzeMessage
+    }
 
-                                                1 -> generateMessage(chatId, mentionUserId,
-                                                    remainingTexts.first())?.let { result ->
+    private fun doMessageCommand(bot: Bot, message: Message, chatId: String, text: String,
+                                 entities: List<MessageEntity>) {
 
-                                                    when (result) {
-                                                        is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
-                                                            "<no such seed exists for $e1Text>"
-                                                        is MarkovChain.GenerateWithSeedResult.Success ->
-                                                            result.message.takeIf { it.isNotEmpty() }
-                                                                ?.joinToString(" ")
-                                                    }
-                                                }
+        val replyText = if (entities.size < 2) {
+            null
+        } else {
+            val e1 = entities[1]
+            if (e1.isMention()) {
+                val (mentionUserId, e1Text) = getMentionUserId(message, e1)
+                if (mentionUserId == null) {
+                    null
+                } else {
+                    val remainingTexts = text.substring(e1.offset + e1.length).trim()
+                        .takeIf { it.isNotBlank() }
+                        ?.split(whitespaceRegex).orEmpty()
+                    when (remainingTexts.size) {
+                        0 -> generateMessage(chatId, mentionUserId)
 
-                                                else -> "<expected only one seed word>"
-                                            }
-                                        } ?: "<no data available for $e1Text>"
-                                    } else {
-                                        null
-                                    }
-                                } ?: "<expected a user mention>"
-                                reply(bot, message, replyText)
+                        1 -> generateMessage(chatId, mentionUserId,
+                            remainingTexts.first())?.let { result ->
 
-                            } else if (matchesCommand(e0Text, "deletemydata")) {
-                                wantToDeleteOwnData.getOrPut(chatId) { mutableSetOf() } += senderId
-                                val replyText =
-                                    "Are you sure you want to delete your Markov chain data in this group? " +
-                                        "Say \"yes\" to confirm, or anything else to cancel."
-                                reply(bot, message, replyText)
-
-                            } else if (matchesCommand(e0Text, "deleteuserdata")) {
-                                val replyText = if (isAdmin(bot, message.chat, from.id)) {
-                                    if (entities.size < 2) {
-                                        null
-                                    } else {
-                                        val e1 = entities[1]
-                                        if (e1.isMention()) {
-                                            val (mentionUserId, e1Text) = getMentionUserId(message, e1)
-                                            if (mentionUserId == null) {
-                                                null
-                                            } else {
-                                                wantToDeleteUserData
-                                                    .getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
-                                                "Are you sure you want to delete $e1Text's Markov chain data in " +
-                                                    "this group? Say \"yes\" to confirm, or anything else to cancel."
-                                            } ?: "I don't have any data for $e1Text."
-                                        } else {
-                                            null
-                                        }
-                                    } ?: "You need to tell me which user's data to delete."
-                                } else {
-                                    "You aren't an administrator."
-                                }
-                                reply(bot, message, replyText)
-
-                            } else if (matchesCommand(e0Text, "deletemessagedata")) {
-                                val replyText = message.replyToMessage?.let { replyToMessage ->
-                                    replyToMessage.from?.let { replyToMessageFrom ->
-                                        if (senderId == replyToMessageFrom.id.toString()) {
-                                            wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] =
-                                                replyToMessage.text ?: ""
-                                            "Are you sure you want to delete that message from your Markov chain " +
-                                                "data in this group? Say \"yes\" to confirm, or anything else to " +
-                                                "cancel."
-                                        } else {
-                                            null
-                                        }
-                                    } ?: "That isn't your message."
-                                } ?: "You need to reply to your message whose data you want to delete."
-                                reply(bot, message, replyText)
+                            when (result) {
+                                is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
+                                    "<no such seed exists for $e1Text>"
+                                is MarkovChain.GenerateWithSeedResult.Success ->
+                                    result.message.takeIf { it.isNotEmpty() }
+                                        ?.joinToString(" ")
                             }
                         }
+
+                        else -> "<expected only one seed word>"
                     }
-                }
-                if (shouldAnalyze) {
-                    analyzeMessage(message)
-                }
+                } ?: "<no data available for $e1Text>"
+            } else {
+                null
             }
+        } ?: "<expected a user mention>"
+        reply(bot, message, replyText)
+    }
+
+    private fun doDeleteMyDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
+        wantToDeleteOwnData.getOrPut(chatId) { mutableSetOf() } += senderId
+        val replyText =
+            "Are you sure you want to delete your Markov chain data in this group? " +
+                "Say \"yes\" to confirm, or anything else to cancel."
+        reply(bot, message, replyText)
+    }
+
+    private fun doDeleteUserDataCommand(bot: Bot, message: Message, chatId: String, from: User, senderId: String,
+                                        entities: List<MessageEntity>) {
+
+        val replyText = if (isAdmin(bot, message.chat, from.id)) {
+            if (entities.size < 2) {
+                null
+            } else {
+                val e1 = entities[1]
+                if (e1.isMention()) {
+                    val (mentionUserId, e1Text) = getMentionUserId(message, e1)
+                    if (mentionUserId == null) {
+                        null
+                    } else {
+                        wantToDeleteUserData
+                            .getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
+                        "Are you sure you want to delete $e1Text's Markov chain data in " +
+                            "this group? Say \"yes\" to confirm, or anything else to cancel."
+                    } ?: "I don't have any data for $e1Text."
+                } else {
+                    null
+                }
+            } ?: "You need to tell me which user's data to delete."
+        } else {
+            "You aren't an administrator."
         }
+        reply(bot, message, replyText)
+    }
+
+    private fun doDeleteMessageDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
+        val replyText = message.replyToMessage?.let { replyToMessage ->
+            replyToMessage.from?.let { replyToMessageFrom ->
+                if (senderId == replyToMessageFrom.id.toString()) {
+                    wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] =
+                        replyToMessage.text ?: ""
+                    "Are you sure you want to delete that message from your Markov chain " +
+                        "data in this group? Say \"yes\" to confirm, or anything else to " +
+                        "cancel."
+                } else {
+                    null
+                }
+            } ?: "That isn't your message."
+        } ?: "You need to reply to your message whose data you want to delete."
+        reply(bot, message, replyText)
     }
 
     private fun analyzeMessage(message: Message) {
