@@ -174,15 +174,15 @@ class Bot(val token: String, val dataPath: String) {
             val e1 = entities[1]
             if (e1.isMention()) {
                 val (mentionUserId, e1Text) = getMentionUserId(message, e1)
+                val formattedUsername = if (mentionUserId != null && e1.type == "text_mention") {
+                    parseMode = ParseMode.MARKDOWN
+                    createInlineMention(e1Text, mentionUserId)
+                } else {
+                    e1Text
+                }
                 if (mentionUserId == null) {
                     null
                 } else {
-                    val formattedUserName = if (e1.type == "text_mention") {
-                        parseMode = ParseMode.MARKDOWN
-                        createInlineMention(e1Text, mentionUserId)
-                    } else {
-                        e1Text
-                    }
                     val remainingTexts = text.substring(e1.offset + e1.length).trim()
                         .takeIf { it.isNotBlank() }
                         ?.split(whitespaceRegex).orEmpty()
@@ -194,7 +194,7 @@ class Bot(val token: String, val dataPath: String) {
 
                             when (result) {
                                 is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
-                                    "<no such seed exists for $formattedUserName>"
+                                    "<no such seed exists for $formattedUsername>"
                                 is MarkovChain.GenerateWithSeedResult.Success ->
                                     result.message.takeIf { it.isNotEmpty() }
                                         ?.joinToString(" ")
@@ -203,7 +203,7 @@ class Bot(val token: String, val dataPath: String) {
 
                         else -> "<expected only one seed word>"
                     }
-                } ?: "<no data available for $e1Text>"
+                } ?: "<no data available for $formattedUsername>"
             } else {
                 null
             }
@@ -230,20 +230,20 @@ class Bot(val token: String, val dataPath: String) {
                 val e1 = entities[1]
                 if (e1.isMention()) {
                     val (mentionUserId, e1Text) = getMentionUserId(message, e1)
+                    val formattedUsername = if (mentionUserId != null && e1.type == "text_mention") {
+                        parseMode = ParseMode.MARKDOWN
+                        createInlineMention(e1Text, mentionUserId)
+                    } else {
+                        e1Text
+                    }
                     if (mentionUserId == null) {
                         null
                     } else {
-                        val formattedUsername = if (e1.type == "text_mention") {
-                            parseMode = ParseMode.MARKDOWN
-                            createInlineMention(e1Text, mentionUserId)
-                        } else {
-                            e1Text
-                        }
                         wantToDeleteUserData
                             .getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
                         "Are you sure you want to delete $formattedUsername's Markov chain data in " +
                             "this group? Say \"yes\" to confirm, or anything else to cancel."
-                    } ?: "I don't have any data for $e1Text."
+                    } ?: "I don't have any data for $formattedUsername."
                 } else {
                     null
                 }
