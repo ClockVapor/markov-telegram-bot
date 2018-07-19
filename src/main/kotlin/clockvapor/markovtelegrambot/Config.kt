@@ -5,7 +5,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import java.io.File
 
 class Config {
-    lateinit var telegramBotName: String
     lateinit var telegramBotToken: String
 
     companion object {
