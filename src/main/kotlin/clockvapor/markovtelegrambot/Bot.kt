@@ -183,21 +183,17 @@ class Bot(val token: String, val dataPath: String) {
                 if (mentionUserId == null) {
                     null
                 } else {
-                    val remainingTexts = text.substring(e1.offset + e1.length).trim()
-                        .takeIf { it.isNotBlank() }
+                    val remainingTexts = text.substring(e1.offset + e1.length).trim().takeIf { it.isNotBlank() }
                         ?.split(whitespaceRegex).orEmpty()
                     when (remainingTexts.size) {
                         0 -> generateMessage(chatId, mentionUserId)
 
-                        1 -> generateMessage(chatId, mentionUserId,
-                            remainingTexts.first())?.let { result ->
-
+                        1 -> generateMessage(chatId, mentionUserId, remainingTexts.first())?.let { result ->
                             when (result) {
                                 is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
                                     "<no such seed exists for $formattedUsername>"
                                 is MarkovChain.GenerateWithSeedResult.Success ->
-                                    result.message.takeIf { it.isNotEmpty() }
-                                        ?.joinToString(" ")
+                                    result.message.takeIf { it.isNotEmpty() }?.joinToString(" ")
                             }
                         }
 
@@ -213,9 +209,8 @@ class Bot(val token: String, val dataPath: String) {
 
     private fun doDeleteMyDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
         wantToDeleteOwnData.getOrPut(chatId) { mutableSetOf() } += senderId
-        val replyText =
-            "Are you sure you want to delete your Markov chain data in this group? " +
-                "Say \"yes\" to confirm, or anything else to cancel."
+        val replyText = "Are you sure you want to delete your Markov chain data in this group? " +
+            "Say \"yes\" to confirm, or anything else to cancel."
         reply(bot, message, replyText)
     }
 
@@ -239,8 +234,7 @@ class Bot(val token: String, val dataPath: String) {
                     if (mentionUserId == null) {
                         null
                     } else {
-                        wantToDeleteUserData
-                            .getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
+                        wantToDeleteUserData.getOrPut(chatId) { mutableMapOf() }[senderId] = mentionUserId
                         "Are you sure you want to delete $formattedUsername's Markov chain data in " +
                             "this group? Say \"yes\" to confirm, or anything else to cancel."
                     } ?: "I don't have any data for $formattedUsername."
@@ -258,11 +252,9 @@ class Bot(val token: String, val dataPath: String) {
         val replyText = message.replyToMessage?.let { replyToMessage ->
             replyToMessage.from?.let { replyToMessageFrom ->
                 if (senderId == replyToMessageFrom.id.toString()) {
-                    wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] =
-                        replyToMessage.text ?: ""
+                    wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] = replyToMessage.text ?: ""
                     "Are you sure you want to delete that message from your Markov chain " +
-                        "data in this group? Say \"yes\" to confirm, or anything else to " +
-                        "cancel."
+                        "data in this group? Say \"yes\" to confirm, or anything else to cancel."
                 } else {
                     null
                 }
