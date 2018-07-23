@@ -64,7 +64,7 @@ class Bot(val token: String, val dataPath: String) {
         if (text != null) {
             handleMessage(bot, message, chatId, from, senderId, text)
         } else if (caption != null) {
-            analyzeMessage(chatId, senderId, caption)
+            handleMessage(bot, message, chatId, from, senderId, caption)
         }
     }
 
