@@ -59,7 +59,13 @@ class Bot(val token: String, val dataPath: String) {
     private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User) {
         val senderId = from.id.toString()
         from.username?.takeIf { it.isNotBlank() }?.let { storeUsername(it, senderId) }
-        message.text?.let { handleMessage(bot, message, chatId, from, senderId, it) }
+        val text = message.text
+        val caption = message.caption
+        if (text != null) {
+            handleMessage(bot, message, chatId, from, senderId, text)
+        } else if (caption != null) {
+            analyzeMessage(chatId, senderId, caption)
+        }
     }
 
     private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User, senderId: String, text: String) {
