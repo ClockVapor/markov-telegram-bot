@@ -70,7 +70,7 @@ class Bot(val token: String, val dataPath: String) {
             }
         }
         if (shouldAnalyzeMessage) {
-            analyzeMessage(message)
+            analyzeMessage(chatId, senderId, text)
         }
     }
 
@@ -250,23 +250,19 @@ class Bot(val token: String, val dataPath: String) {
 
     private fun doDeleteMessageDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
         val replyText = message.replyToMessage?.let { replyToMessage ->
-            replyToMessage.from?.let { replyToMessageFrom ->
-                if (senderId == replyToMessageFrom.id.toString()) {
-                    wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] = replyToMessage.text ?: ""
-                    "Are you sure you want to delete that message from your Markov chain " +
-                        "data in this group? Say \"yes\" to confirm, or anything else to cancel."
-                } else {
-                    null
-                }
+            replyToMessage.from?.takeIf { it.id.toString() == senderId }?.let { replyToMessageFrom ->
+                wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] = replyToMessage.text ?: ""
+                "Are you sure you want to delete that message from your Markov chain " +
+                    "data in this group? Say \"yes\" to confirm, or anything else to cancel."
             } ?: "That isn't your message."
         } ?: "You need to reply to your message whose data you want to delete."
         reply(bot, message, replyText)
     }
 
-    private fun analyzeMessage(message: Message) {
-        val path = getMarkovPath(message.chat.id.toString(), message.from!!.id.toString())
+    private fun analyzeMessage(chatId: String, userId: String, text: String) {
+        val path = getMarkovPath(chatId, userId)
         val markovChain = tryOrNull { MarkovChain.read(path) } ?: MarkovChain()
-        markovChain.add(message.text!!.split(whitespaceRegex))
+        markovChain.add(text.split(whitespaceRegex))
         markovChain.write(path)
     }
 
@@ -303,8 +299,8 @@ class Bot(val token: String, val dataPath: String) {
 
     @Suppress("UNCHECKED_CAST")
     private fun readUsernames(): MutableMap<String, String>? = tryOrNull {
-        ObjectMapper().readValue<MutableMap<*, *>>(File(getUsernamesPath()),
-            MutableMap::class.java) as MutableMap<String, String>
+        ObjectMapper().readValue<MutableMap<*, *>>(File(getUsernamesPath()), MutableMap::class.java)
+            as MutableMap<String, String>
     }
 
     private fun writeUsernames(usernames: Map<String, String>) {
@@ -328,11 +324,8 @@ class Bot(val token: String, val dataPath: String) {
     private fun getMarkovPath(chatId: String, userId: String): String =
         Paths.get(getChatPath(chatId), "$userId.json").toString()
 
-    private fun getChatPath(chatId: String): String {
-        val path = Paths.get(dataPath, chatId).toString()
-        File(path).mkdirs()
-        return path
-    }
+    private fun getChatPath(chatId: String): String =
+        Paths.get(dataPath, chatId).toString().also { File(it).mkdirs() }
 
     private fun getUsernamesPath(): String {
         File(dataPath).mkdirs()
