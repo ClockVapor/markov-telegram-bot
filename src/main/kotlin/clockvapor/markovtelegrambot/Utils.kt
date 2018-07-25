@@ -40,8 +40,27 @@ fun getChatMember(bot: Bot, chatId: Long, userId: Long): ChatMember? {
     return response?.takeIf { it.isSuccessful }?.body()?.takeIf { it.ok }?.result
 }
 
-fun <T> tryOrNull(f: () -> T): T? = try {
+inline fun <T> tryOrLog(f: () -> T) {
+    try {
+        f()
+    } catch (e: Exception) {
+        log(e)
+    }
+}
+
+inline fun <T> tryOrNull(reportException: Boolean = true, f: () -> T): T? = tryOrDefault(null, reportException, f)
+
+inline fun <T> tryOrDefault(default: T, reportException: Boolean = true, f: () -> T): T = try {
     f()
 } catch (e: Exception) {
-    null
+    if (reportException) log(e)
+    default
+}
+
+inline fun <T> trySuccessful(reportException: Boolean = true, f: () -> T): Boolean = try {
+    f()
+    true
+} catch (e: Exception) {
+    if (reportException) log(e)
+    false
 }

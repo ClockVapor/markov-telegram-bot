@@ -43,7 +43,7 @@ class Bot(val token: String, val dataPath: String) {
     }
 
     private fun handleUpdate(bot: Bot, update: Update) {
-        update.message?.let { handleMessage(bot, it) }
+        update.message?.let { tryOrLog { handleMessage(bot, it) } }
     }
 
     private fun handleMessage(bot: Bot, message: Message) {
@@ -51,14 +51,14 @@ class Bot(val token: String, val dataPath: String) {
         message.newChatMember?.takeIf { it.id == myId!! }?.let { log("Added to group $chatId") }
         message.leftChatMember?.takeIf { it.id == myId!! }?.let {
             log("Removed from group $chatId")
-            deleteChat(chatId)
+            tryOrLog { deleteChat(chatId) }
         }
         message.from?.let { handleMessage(bot, message, chatId, it) }
     }
 
     private fun handleMessage(bot: Bot, message: Message, chatId: String, from: User) {
         val senderId = from.id.toString()
-        from.username?.takeIf { it.isNotBlank() }?.let { storeUsername(it, senderId) }
+        from.username?.let { tryOrLog { storeUsername(it, senderId) } }
         val text = message.text
         val caption = message.caption
         if (text != null) {
@@ -122,7 +122,7 @@ class Bot(val token: String, val dataPath: String) {
                 wantToDeleteOwnData -= chatId
             }
             val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                if (deleteMarkov(chatId, senderId)) {
+                if (tryOrDefault(false) { deleteMarkov(chatId, senderId) }) {
                     "Okay. I deleted your Markov chain data in this group."
                 } else {
                     "Hmm. I tried to delete your Markov chain data in this group, but something went wrong."
@@ -140,7 +140,7 @@ class Bot(val token: String, val dataPath: String) {
                 wantToDeleteUserData -= chatId
             }
             val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                if (deleteMarkov(chatId, userIdToDelete)) {
+                if (tryOrDefault(false) { deleteMarkov(chatId, userIdToDelete) }) {
                     "Okay. I deleted their Markov chain data in this group."
                 } else {
                     "Hmm. I tried to delete their Markov chain data in this group, but something went wrong."
@@ -158,8 +158,11 @@ class Bot(val token: String, val dataPath: String) {
                 wantToDeleteMessageData -= chatId
             }
             val replyText = if (text.trim().toLowerCase(Locale.ENGLISH) == YES) {
-                deleteMessage(chatId, senderId, messageToDelete)
-                "Okay. I deleted that message from your Markov chain data in this group."
+                if (trySuccessful { deleteMessage(chatId, senderId, messageToDelete) })
+                    "Okay. I deleted that message from your Markov chain data in this group."
+                else
+                    "Hmm. I tried to delete that message from your Markov chain data in this group, but something " +
+                        "went wrong."
             } else {
                 "Okay. I won't delete that message from your Markov chain data in this group then."
             }
@@ -295,19 +298,18 @@ class Bot(val token: String, val dataPath: String) {
     }
 
     private fun getUserIdForUsername(username: String): String? =
-        readUsernames()?.get(username.toLowerCase(Locale.ENGLISH))
+        tryOrNull { readUsernames() }?.get(username.toLowerCase(Locale.ENGLISH))
 
     private fun storeUsername(username: String, userId: String) {
-        val usernames = readUsernames() ?: mutableMapOf()
+        val usernames = tryOrNull { readUsernames() } ?: mutableMapOf()
         usernames[username.toLowerCase(Locale.ENGLISH)] = userId
         writeUsernames(usernames)
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun readUsernames(): MutableMap<String, String>? = tryOrNull {
+    private fun readUsernames(): MutableMap<String, String> =
         ObjectMapper().readValue<MutableMap<*, *>>(File(getUsernamesPath()), MutableMap::class.java)
             as MutableMap<String, String>
-    }
 
     private fun writeUsernames(usernames: Map<String, String>) {
         ObjectMapper().writeValue(File(getUsernamesPath()), usernames)
@@ -321,7 +323,7 @@ class Bot(val token: String, val dataPath: String) {
 
     private fun deleteMessage(chatId: String, userId: String, text: String) {
         val path = getMarkovPath(chatId, userId)
-        tryOrNull { MarkovChain.read(path) }?.let { markovChain ->
+        MarkovChain.read(path).let { markovChain ->
             markovChain.remove(text.split(whitespaceRegex))
             markovChain.write(path)
         }
