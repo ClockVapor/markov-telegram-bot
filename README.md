@@ -38,18 +38,34 @@ opens.
 
 ## Running the Bot
 
-The program expects two arguments:
+Create a Telegram bot via @BotFather. Take down your bot's access token, and set its privacy mode to disabled so it can
+read all messages in its groups. If privacy mode is enabled, the bot won't be able to build Markov chains. Then, using @BotFather's /setcommands command, copy and paste the following text as your input to set your bot's command list.
 
-1. Path to a config YAML file.
-2. Path to a data directory. This is where all of the Markov chain data will be stored.
+    msg - Generate message from a user
+    deletemydata - Delete your Markov chain data in this group
+    deletemessagedata - Delete a message from your Markov chain data in this group
+    deleteuserdata - (Admin only) Delete a user's Markov chain data in this group
+    
+Now you will need to build some code. The projects all use [Maven](https://maven.apache.org/), so get that installed if you
+haven't already. Download the latest source code for the [markov project](https://github.com/ClockVapor/markov) and also for
+the [markov-telegram-bot project](https://github.com/ClockVapor/markov-telegram-bot). Unzip both, enter a command line in
+the `markov` root directory, and run `mvn clean install`. Then enter the root `markov-telegram-bot` directory and run
+`mvn clean package`. Two jars will be generated in the `target` directory; you need run the `jar-with-dependencies` one.
 
-These arguments are given like so:
-
--c \<config yml path> -d \<data directory path>
-
-The data directory doesn't need to exist ahead of time. The config YAML file does though, and it must contain the following
-entry and nothing else:
+Create a folder wherever you want to store the bot's files. Copy the `jar-with-dependencies` into this folder, and create a YAML
+file in there too with the following contents:
 
     telegramBotToken: <your bot token>
+    
+Replace `<your bot token>` with the token @BotFather gave you when you created your bot. I call this file `config.yml`, but you
+can use any name you want.
+
+Now you're ready to run the bot. Open a command line inside your bot folder and run the following command:
+
+    java -jar <jar path> -c <config yml path> -d <data directory path>
+    
+Replace `<jar path>` with the name of the `jar-with-dependencies` file you copied into the folder, `<config yml path>` with the
+name of the YAML file you created in the folder, and `<data directory path>` with whatever path you want to store the bot's
+Markov chain data in (I just use `data`).
 
 That's it!
