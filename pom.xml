@@ -25,9 +25,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>clockvapor.markov</groupId>
+            <groupId>com.github.clockvapor</groupId>
             <artifactId>markov</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>master</version>
         </dependency>
         <dependency>
             <groupId>com.xenomachina</groupId>
