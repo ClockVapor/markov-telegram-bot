@@ -1,4 +1,4 @@
-package clockvapor.markovtelegrambot
+package clockvapor.telegram.markov
 
 import clockvapor.markov.MarkovChain
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -14,7 +14,7 @@ import java.io.File
 import java.nio.file.Paths
 import java.util.*
 
-class Bot(val token: String, val dataPath: String) {
+class MarkovTelegramBot(private val token: String, private val dataPath: String) {
     private var myId: Long? = null
     private lateinit var myUsername: String
     private val wantToDeleteOwnData = mutableMapOf<String, MutableSet<String>>()
@@ -23,7 +23,7 @@ class Bot(val token: String, val dataPath: String) {
 
     fun run() {
         val bot = bot {
-            this@bot.token = this@Bot.token
+            this.token = this@MarkovTelegramBot.token
             logLevel = HttpLoggingInterceptor.Level.NONE
             dispatch {
                 addHandler(object : Handler({ bot, update -> handleUpdate(bot, update) }) {
@@ -131,7 +131,6 @@ class Bot(val token: String, val dataPath: String) {
                 "Okay. I won't delete your Markov chain data in this group then."
             }
             reply(bot, message, replyText)
-
         } else if (deleteUserData?.contains(senderId) == true) {
             shouldAnalyzeMessage = false
             val userIdToDelete = deleteUserData[senderId]!!
@@ -149,7 +148,6 @@ class Bot(val token: String, val dataPath: String) {
                 "Okay. I won't delete their Markov chain data in this group then."
             }
             reply(bot, message, replyText)
-
         } else if (deleteMessageData?.contains(senderId) == true) {
             shouldAnalyzeMessage = false
             val messageToDelete = deleteMessageData[senderId]!!
@@ -284,7 +282,7 @@ class Bot(val token: String, val dataPath: String) {
         tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generateWithCaseInsensitiveSeed(seed)
 
     private fun reply(bot: Bot, message: Message, text: String, parseMode: ParseMode? = null) {
-        bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId.toInt(), parseMode = parseMode)
+        bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId, parseMode = parseMode)
     }
 
     private fun getMentionUserId(message: Message, entity: MessageEntity): Pair<String?, String> {
@@ -349,9 +347,9 @@ class Bot(val token: String, val dataPath: String) {
 
         @JvmStatic
         fun main(args: Array<String>) = mainBody {
-            val a = ArgParser(args).parseInto(::Args)
+            val a = ArgParser(args).parseInto(MarkovTelegramBot::Args)
             val config = Config.read(a.configPath)
-            Bot(config.telegramBotToken, a.dataPath).run()
+            MarkovTelegramBot(config.telegramBotToken, a.dataPath).run()
         }
     }
 

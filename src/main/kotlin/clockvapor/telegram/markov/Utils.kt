@@ -1,4 +1,4 @@
-package clockvapor.markovtelegrambot
+package clockvapor.telegram.markov
 
 import me.ivmg.telegram.Bot
 import me.ivmg.telegram.entities.Chat
@@ -48,7 +48,8 @@ inline fun <T> tryOrLog(f: () -> T) {
     }
 }
 
-inline fun <T> tryOrNull(reportException: Boolean = true, f: () -> T): T? = tryOrDefault(null, reportException, f)
+inline fun <T> tryOrNull(reportException: Boolean = true, f: () -> T): T? =
+    tryOrDefault(null, reportException, f)
 
 inline fun <T> tryOrDefault(default: T, reportException: Boolean = true, f: () -> T): T = try {
     f()

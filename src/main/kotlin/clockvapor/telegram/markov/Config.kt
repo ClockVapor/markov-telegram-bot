@@ -1,4 +1,4 @@
-package clockvapor.markovtelegrambot
+package clockvapor.telegram.markov
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
