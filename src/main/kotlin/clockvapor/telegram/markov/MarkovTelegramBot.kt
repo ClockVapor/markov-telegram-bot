@@ -1,6 +1,7 @@
 package clockvapor.telegram.markov
 
 import clockvapor.markov.MarkovChain
+import clockvapor.telegram.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.mainBody

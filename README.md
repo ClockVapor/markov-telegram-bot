@@ -46,11 +46,10 @@ read all messages in its groups. If privacy mode is enabled, the bot won't be ab
     deletemessagedata - Delete a message from your Markov chain data in this group
     deleteuserdata - (Admin only) Delete a user's Markov chain data in this group
     
-Now you will need to build some code. The projects all use [Maven](https://maven.apache.org/), so get that installed if you
-haven't already. Download the latest source code for the [markov project](https://github.com/ClockVapor/markov) and also for
-the [markov-telegram-bot project](https://github.com/ClockVapor/markov-telegram-bot). Unzip both, enter a command line in
-the `markov` root directory, and run `mvn clean install`. Then enter the root `markov-telegram-bot` directory and run
-`mvn clean package`. Two jars will be generated in the `target` directory; you need run the `jar-with-dependencies` one.
+Now you will need to build some code. The project uses [Maven](https://maven.apache.org/), so get that installed if you
+haven't already. Download the latest source code for markov-telegram-bot. Unzip it, enter a command line in the root
+`markov-telegram-bot` directory and run `mvn clean package`. Two jars will be generated in the `target` directory; you
+need the `jar-with-dependencies` one.
 
 Create a folder wherever you want to store the bot's files. Copy the `jar-with-dependencies` into this folder, and create a YAML
 file in there too with the following contents:
