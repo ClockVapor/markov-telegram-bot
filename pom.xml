@@ -18,7 +18,7 @@
 
     <repositories>
         <repository>
-            <id>jitpack</id>
+            <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
     </repositories>
@@ -32,7 +32,7 @@
         <dependency>
             <groupId>com.github.clockvapor</groupId>
             <artifactId>telegram-utils</artifactId>
-            <version>0.0.0</version>
+            <version>0.0.1</version>
         </dependency>
         <dependency>
             <groupId>com.xenomachina</groupId>

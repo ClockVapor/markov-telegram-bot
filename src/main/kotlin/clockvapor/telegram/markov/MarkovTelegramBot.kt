@@ -16,6 +16,17 @@ import java.nio.file.Paths
 import java.util.*
 
 class MarkovTelegramBot(private val token: String, private val dataPath: String) {
+    companion object {
+        private const val YES = "yes"
+
+        @JvmStatic
+        fun main(args: Array<String>) = mainBody {
+            val a = ArgParser(args).parseInto(MarkovTelegramBot::Args)
+            val config = Config.read(a.configPath)
+            MarkovTelegramBot(config.telegramBotToken, a.dataPath).run()
+        }
+    }
+
     private var myId: Long? = null
     private lateinit var myUsername: String
     private val wantToDeleteOwnData = mutableMapOf<String, MutableSet<String>>()
@@ -341,18 +352,6 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
 
     private fun matchesCommand(text: String, command: String): Boolean =
         text == "/$command" || text == "/$command@$myUsername"
-
-    companion object {
-        private const val YES = "yes"
-        private val whitespaceRegex = Regex("\\s+")
-
-        @JvmStatic
-        fun main(args: Array<String>) = mainBody {
-            val a = ArgParser(args).parseInto(MarkovTelegramBot::Args)
-            val config = Config.read(a.configPath)
-            MarkovTelegramBot(config.telegramBotToken, a.dataPath).run()
-        }
-    }
 
     class Args(parser: ArgParser) {
         val configPath by parser.storing("-c", "--config", help = "Path to config YAML file")
