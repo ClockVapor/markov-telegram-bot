@@ -44,10 +44,15 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
                 })
             }
         }
-        bot.getMe().first?.body()?.result?.let { me ->
-            myId = me.id
-            myUsername = me.username ?: throw Exception("Bot has no username")
-        } ?: throw Exception("Failed to retrieve bot's user")
+        val me = bot.getMe()
+        val id = me.first?.body()?.result?.id
+        val username = me.first?.body()?.result?.username
+        if (id == null || username == null) {
+            val exception = me.first?.errorBody()?.string()?.let(::Exception) ?: me.second ?: Exception("Unknown error")
+            throw Exception("Failed to retrieve bot's username/id", exception)
+        }
+        myId = id
+        myUsername = username
         log("Bot ID = $myId")
         log("Bot username = $myUsername")
         log("Bot started")
