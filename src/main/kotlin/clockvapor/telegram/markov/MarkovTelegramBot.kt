@@ -343,11 +343,11 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
             ?.generateWithCaseInsensitiveSeed(seed)
 
     private fun generateMessageTotal(chatId: String): String? =
-        tryOrNull(reportException = false) { MarkovChain.read(getTotalMarkovPath(chatId)) }?.generate()
+        tryOrNull(reportException = false) { getOrCreateTotalMarkovChain(chatId) }?.generate()
             ?.takeIf { it.isNotEmpty() }?.joinToString(" ")
 
     private fun generateMessageTotal(chatId: String, seed: String): MarkovChain.GenerateWithSeedResult? =
-        tryOrNull(reportException = false) { MarkovChain.read(getTotalMarkovPath(chatId)) }
+        tryOrNull(reportException = false) { getOrCreateTotalMarkovChain(chatId) }
             ?.generateWithCaseInsensitiveSeed(seed)
 
     private fun reply(bot: Bot, message: Message, text: String, parseMode: ParseMode? = null) {
