@@ -110,6 +110,9 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
                 matchesCommand(e0Text, "msg") ->
                     doMessageCommand(bot, message, chatId, text, entities)
 
+                matchesCommand(e0Text, "msgall") ->
+                    doMessageTotalCommand(bot, message, chatId, text, entities)
+
                 matchesCommand(e0Text, "deletemydata") ->
                     doDeleteMyDataCommand(bot, message, chatId, senderId)
 
@@ -231,6 +234,29 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
         reply(bot, message, replyText, parseMode)
     }
 
+    private fun doMessageTotalCommand(bot: Bot, message: Message, chatId: String, text: String,
+                                      entities: List<MessageEntity>) {
+
+        val e0 = entities[0]
+        val remainingTexts = text.substring(e0.offset + e0.length).trim().takeIf { it.isNotBlank() }
+            ?.split(whitespaceRegex).orEmpty()
+        val replyText = when (remainingTexts.size) {
+            0 -> generateMessageTotal(chatId)
+
+            1 -> generateMessageTotal(chatId, remainingTexts.first())?.let { result ->
+                when (result) {
+                    is MarkovChain.GenerateWithSeedResult.NoSuchSeed ->
+                        "<no such seed exists>"
+                    is MarkovChain.GenerateWithSeedResult.Success ->
+                        result.message.takeIf { it.isNotEmpty() }?.joinToString(" ")
+                }
+            }
+
+            else -> "<expected only one seed word>"
+        } ?: "<no data available>"
+        reply(bot, message, replyText)
+    }
+
     private fun doDeleteMyDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
         wantToDeleteOwnData.getOrPut(chatId) { mutableSetOf() } += senderId
         val replyText = "Are you sure you want to delete your Markov chain data in this group? " +
@@ -285,18 +311,44 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
 
     private fun analyzeMessage(chatId: String, userId: String, text: String) {
         val path = getMarkovPath(chatId, userId)
-        val markovChain = tryOrNull { MarkovChain.read(path) } ?: MarkovChain()
-        markovChain.add(text.split(whitespaceRegex))
+        val markovChain = tryOrNull(reportException = false) { MarkovChain.read(path) } ?: MarkovChain()
+        val totalMarkovChain = getOrCreateTotalMarkovChain(chatId)
+        val words = text.split(whitespaceRegex)
+        markovChain.add(words)
         markovChain.write(path)
+        totalMarkovChain.add(words)
+        totalMarkovChain.write(getTotalMarkovPath(chatId))
+    }
+
+    private fun getOrCreateTotalMarkovChain(chatId: String): MarkovChain {
+        val path = getTotalMarkovPath(chatId)
+        var markovChain = tryOrNull(reportException = false) { MarkovChain.read(path) }
+        if (markovChain == null) {
+            markovChain = MarkovChain()
+            for (personalMarkovChain in readAllPersonalMarkov(chatId)) {
+                markovChain.add(personalMarkovChain)
+            }
+            markovChain.write(path)
+        }
+        return markovChain
     }
 
     private fun generateMessage(chatId: String, userId: String): String? =
-        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate()
+        tryOrNull(reportException = false) { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generate()
             ?.takeIf { it.isNotEmpty() }?.joinToString(" ")
 
     private fun generateMessage(chatId: String, userId: String,
                                 seed: String): MarkovChain.GenerateWithSeedResult? =
-        tryOrNull { MarkovChain.read(getMarkovPath(chatId, userId)) }?.generateWithCaseInsensitiveSeed(seed)
+        tryOrNull(reportException = false) { MarkovChain.read(getMarkovPath(chatId, userId)) }
+            ?.generateWithCaseInsensitiveSeed(seed)
+
+    private fun generateMessageTotal(chatId: String): String? =
+        tryOrNull(reportException = false) { MarkovChain.read(getTotalMarkovPath(chatId)) }?.generate()
+            ?.takeIf { it.isNotEmpty() }?.joinToString(" ")
+
+    private fun generateMessageTotal(chatId: String, seed: String): MarkovChain.GenerateWithSeedResult? =
+        tryOrNull(reportException = false) { MarkovChain.read(getTotalMarkovPath(chatId)) }
+            ?.generateWithCaseInsensitiveSeed(seed)
 
     private fun reply(bot: Bot, message: Message, text: String, parseMode: ParseMode? = null) {
         bot.sendMessage(message.chat.id, text, replyToMessageId = message.messageId, parseMode = parseMode)
@@ -313,10 +365,10 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     }
 
     private fun getUserIdForUsername(username: String): String? =
-        tryOrNull { readUsernames() }?.get(username.toLowerCase(Locale.ENGLISH))
+        tryOrNull(reportException = false) { readUsernames() }?.get(username.toLowerCase(Locale.ENGLISH))
 
     private fun storeUsername(username: String, userId: String) {
-        val usernames = tryOrNull { readUsernames() } ?: mutableMapOf()
+        val usernames = tryOrNull(reportException = false) { readUsernames() } ?: mutableMapOf()
         usernames[username.toLowerCase(Locale.ENGLISH)] = userId
         writeUsernames(usernames)
     }
@@ -333,19 +385,43 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     private fun deleteChat(chatId: String): Boolean =
         File(getChatPath(chatId)).deleteRecursively()
 
-    private fun deleteMarkov(chatId: String, userId: String): Boolean =
-        File(getMarkovPath(chatId, userId)).delete()
+    private fun deleteMarkov(chatId: String, userId: String): Boolean {
+        // remove personal markov chain from total markov chain
+        val path = getMarkovPath(chatId, userId)
+        val markovChain = tryOrNull(reportException = false) { MarkovChain.read(path) } ?: MarkovChain()
+        val totalMarkovChain = getOrCreateTotalMarkovChain(chatId)
+        totalMarkovChain.remove(markovChain)
+        totalMarkovChain.write(getTotalMarkovPath(chatId))
+
+        // delete personal markov chain
+        return File(path).delete()
+    }
 
     private fun deleteMessage(chatId: String, userId: String, text: String) {
+        val words = text.split(whitespaceRegex)
+
+        // remove from personal markov chain
         val path = getMarkovPath(chatId, userId)
-        MarkovChain.read(path).let { markovChain ->
-            markovChain.remove(text.split(whitespaceRegex))
-            markovChain.write(path)
-        }
+        val markovChain = tryOrNull(reportException = false) { MarkovChain.read(path) } ?: MarkovChain()
+        markovChain.remove(words)
+        markovChain.write(path)
+
+        // remove from total markov chain
+        val totalMarkovChain = getOrCreateTotalMarkovChain(chatId)
+        totalMarkovChain.remove(words)
+        totalMarkovChain.write(getTotalMarkovPath(chatId))
     }
+
+    private fun readAllPersonalMarkov(chatId: String): List<MarkovChain> =
+        File(getChatPath(chatId)).listFiles()
+            .filter { !it.name.endsWith("total.json") }
+            .map { MarkovChain.read(it.path) }
 
     private fun getMarkovPath(chatId: String, userId: String): String =
         Paths.get(getChatPath(chatId), "$userId.json").toString()
+
+    private fun getTotalMarkovPath(chatId: String): String =
+        Paths.get(getChatPath(chatId), "total.json").toString()
 
     private fun getChatPath(chatId: String): String =
         Paths.get(dataPath, chatId).toString().also { File(it).mkdirs() }

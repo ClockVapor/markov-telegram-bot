@@ -22,6 +22,10 @@ who don't have a username. Either way, just type the `@` character and select a 
 You can also include an optional "seed" word following the user mention to tell the bot which word to start with when it generates
 the message: `/msg @some_user blah`
 
+### /msgall
+To generate a message based on the messages from all users, use the `/msgall` command. Just like with `/msg`, you can
+include an optional "seed" word following the command.
+
 ### /deletemydata
 The `/deletemydata` command allows you to delete your own Markov chain data for the current group. Simply send the command and
 confirm your choice when the bot asks.
@@ -42,6 +46,7 @@ Create a Telegram bot via @BotFather. Take down your bot's access token, and set
 read all messages in its groups. If privacy mode is enabled, the bot won't be able to build Markov chains. Then, using @BotFather's /setcommands command, copy and paste the following text as your input to set your bot's command list.
 
     msg - Generate message from a user
+    msgall - Generate message based on all users in this group
     deletemydata - Delete your Markov chain data in this group
     deletemessagedata - Delete a message from your Markov chain data in this group
     deleteuserdata - (Admin only) Delete a user's Markov chain data in this group
