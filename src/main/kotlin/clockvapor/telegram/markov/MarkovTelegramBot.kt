@@ -280,7 +280,9 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
             val chatMember = response.first?.body()?.result
             if (chatMember != null) {
                 val mostDistinguishingWords = scoreMostDistinguishingWords(wordCounts, universe).keys.take(5)
-                "${chatMember.user.displayName}\n" +
+                "${chatMember.user.displayName.takeIf { it.isNotBlank() }
+                    ?: chatMember.user.username?.takeIf { it.isNotBlank() }
+                    ?: "User ID: $userId"}\n" +
                     mostDistinguishingWords.mapIndexed { i, word -> "${i + 1}. $word" }.joinToString("\n")
             } else null
         }.filter { it.isNotBlank() }.joinToString("\n\n")
