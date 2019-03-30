@@ -113,6 +113,9 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
                 matchesCommand(e0Text, "msgall") ->
                     doMessageTotalCommand(bot, message, chatId, text, entities)
 
+                matchesCommand(e0Text, "stats") ->
+                    doStatisticsCommand(bot, message, chatId, text)
+
                 matchesCommand(e0Text, "deletemydata") ->
                     doDeleteMyDataCommand(bot, message, chatId, senderId)
 
@@ -136,6 +139,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
         val deleteMessageData = wantToDeleteMessageData[chatId]
 
         if (deleteOwnData?.contains(senderId) == true) {
+            bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
             shouldAnalyzeMessage = false
             deleteOwnData -= senderId
             if (deleteOwnData.isEmpty()) {
@@ -152,6 +156,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
             }
             reply(bot, message, replyText)
         } else if (deleteUserData?.contains(senderId) == true) {
+            bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
             shouldAnalyzeMessage = false
             val userIdToDelete = deleteUserData[senderId]!!
             deleteUserData -= senderId
@@ -169,6 +174,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
             }
             reply(bot, message, replyText)
         } else if (deleteMessageData?.contains(senderId) == true) {
+            bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
             shouldAnalyzeMessage = false
             val messageToDelete = deleteMessageData[senderId]!!
             deleteMessageData -= senderId
@@ -193,6 +199,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     private fun doMessageCommand(bot: Bot, message: Message, chatId: String, text: String,
                                  entities: List<MessageEntity>) {
 
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
         var parseMode: ParseMode? = null
 
         val replyText = if (entities.size < 2) {
@@ -237,6 +244,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     private fun doMessageTotalCommand(bot: Bot, message: Message, chatId: String, text: String,
                                       entities: List<MessageEntity>) {
 
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
         val e0 = entities[0]
         val remainingTexts = text.substring(e0.offset + e0.length).trim().takeIf { it.isNotBlank() }
             ?.split(whitespaceRegex).orEmpty()
@@ -257,7 +265,32 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
         reply(bot, message, replyText)
     }
 
+    private fun doStatisticsCommand(bot: Bot, message: Message, chatId: String, text: String) {
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
+        val markovPaths = getAllPersonalMarkovPaths(chatId)
+        val userIdToWordCountsMap = markovPaths
+            .mapNotNull { path ->
+                tryOrNull { MarkovChain.read(path) }
+                    ?.let { Pair(File(path).nameWithoutExtension, it.wordCounts) }
+            }
+            .toMap()
+        val universe = computeUniverse(userIdToWordCountsMap.values)
+        val listText = userIdToWordCountsMap.mapNotNull { (userId, wordCounts) ->
+            val response = bot.getChatMember(chatId.toLong(), userId.toLong())
+            val chatMember = response.first?.body()?.result
+            if (chatMember != null) {
+                val mostDistinguishingWords = scoreMostDistinguishingWords(wordCounts, universe).keys.take(5)
+                "${chatMember.user.displayName}\n" +
+                    mostDistinguishingWords.mapIndexed { i, word -> "${i + 1}. $word" }.joinToString("\n")
+            } else null
+        }.filter { it.isNotBlank() }.joinToString("\n\n")
+        val replyText = if (listText.isBlank()) "<no data available>"
+        else "Most distinguishing words:\n\n$listText"
+        reply(bot, message, replyText)
+    }
+
     private fun doDeleteMyDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
         wantToDeleteOwnData.getOrPut(chatId) { mutableSetOf() } += senderId
         val replyText = "Are you sure you want to delete your Markov chain data in this group? " +
             "Say \"yes\" to confirm, or anything else to cancel."
@@ -267,6 +300,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     private fun doDeleteUserDataCommand(bot: Bot, message: Message, chatId: String, from: User, senderId: String,
                                         entities: List<MessageEntity>) {
 
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
         var parseMode: ParseMode? = null
         val replyText = if (isAdmin(bot, message.chat, from.id)) {
             if (entities.size < 2) {
@@ -299,6 +333,7 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     }
 
     private fun doDeleteMessageDataCommand(bot: Bot, message: Message, chatId: String, senderId: String) {
+        bot.sendChatAction(chatId.toLong(), ChatAction.TYPING)
         val replyText = message.replyToMessage?.let { replyToMessage ->
             replyToMessage.from?.takeIf { it.id.toString() == senderId }?.let { replyToMessageFrom ->
                 wantToDeleteMessageData.getOrPut(chatId) { mutableMapOf() }[senderId] = replyToMessage.text ?: ""
@@ -413,9 +448,13 @@ class MarkovTelegramBot(private val token: String, private val dataPath: String)
     }
 
     private fun readAllPersonalMarkov(chatId: String): List<MarkovChain> =
+        getAllPersonalMarkovPaths(chatId)
+            .map { MarkovChain.read(it) }
+
+    private fun getAllPersonalMarkovPaths(chatId: String): List<String> =
         File(getChatPath(chatId)).listFiles()
             .filter { !it.name.endsWith("total.json") }
-            .map { MarkovChain.read(it.path) }
+            .map { it.path }
 
     private fun getMarkovPath(chatId: String, userId: String): String =
         Paths.get(getChatPath(chatId), "$userId.json").toString()

@@ -40,6 +40,10 @@ an admin, simply send the command with a user mention following it, and confirm 
 `/deleteuserdata @some_user`. As with the `/msg` command, just type the `@` character and select a user from the dropdown that
 opens.
 
+### /stats
+The `/stats` command shows a list of each user's top five most distinguishing words - words they use the most, compared
+to everyone else in the group.
+
 ## Running the Bot
 
 Create a Telegram bot via @BotFather. Take down your bot's access token, and set its privacy mode to disabled so it can
@@ -50,6 +54,7 @@ read all messages in its groups. If privacy mode is enabled, the bot won't be ab
     deletemydata - Delete your Markov chain data in this group
     deletemessagedata - Delete a message from your Markov chain data in this group
     deleteuserdata - (Admin only) Delete a user's Markov chain data in this group
+    stats - Display user statistics
 
 Download the precompiled jar file from the latest [release](https://github.com/ClockVapor/markov-telegram-bot/releases)
 or build it yourself with Maven if you like. If you aren't building it yourself, skip the next paragraph.
