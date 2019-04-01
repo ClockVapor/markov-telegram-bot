@@ -21,9 +21,15 @@ fun scoreMostDistinguishingWords(user: Map<String, Int>, universe: Map<String, I
     val userTotal = user.values.sum()
     val universeTotal = universe.values.sum()
     for ((word, count) in user) {
-        scores[word] = Math.pow(count.toDouble(), 1.1) / userTotal * (universeTotal / universe.getValue(word))
+        scores[word] = Math.pow(count.toDouble(), 1.1) / userTotal / (universe.getValue(word).toDouble() / universeTotal)
     }
-    return scores.toList().sortedByDescending { it.second }.toMap()
+    return scores.toList().sortedWith(Comparator { a, b ->
+        val c = b.second.compareTo(a.second)
+        if (c == 0)
+            a.first.compareTo(b.first)
+        else
+            c
+    }).toMap()
 }
 
 fun computeUniverse(wordCountsCollection: Collection<Map<String, Int>>): Map<String, Int> {
